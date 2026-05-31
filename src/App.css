@@ -658,6 +658,7 @@
 
 .knowledge-map {
   position: relative;
+  container: knowledge-map / inline-size;
   min-block-size: 18rem;
   border-radius: 1rem;
   overflow: clip;
@@ -675,6 +676,7 @@
   inset: 0;
   inline-size: 100%;
   block-size: 100%;
+  pointer-events: none;
 }
 
 .knowledge-map line {
@@ -685,7 +687,12 @@
 
 .map-node {
   position: absolute;
+  z-index: 1;
+  flex-direction: column;
+  align-items: start;
+  gap: 0.35rem;
   inline-size: clamp(7.5rem, 14cqi, 10rem);
+  max-inline-size: calc(100% - 1rem);
   padding: 0.65rem 0.8rem;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 1rem;
@@ -707,6 +714,7 @@
 .map-node strong,
 .bridge-button strong {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .map-node span,

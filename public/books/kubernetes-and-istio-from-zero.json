@@ -1,0 +1,1353 @@
+{
+  "id": "kubernetes-and-istio-from-zero",
+  "title": "Kubernetes and Istio from Zero",
+  "subtitle": "A beginner-friendly deep dive into containers, clusters, and service mesh operations",
+  "description": "A field guide for newcomers that starts with first principles and lands in modern production patterns across Kubernetes 1.36.1 and Istio 1.30.0.",
+  "coverEmoji": "⎈",
+  "durationMinutes": 176,
+  "tags": [
+    "Kubernetes",
+    "Istio",
+    "Containers",
+    "Platform engineering",
+    "Service mesh"
+  ],
+  "theme": {
+    "accent": "#22d3ee",
+    "surface": "#071826",
+    "glow": "rgba(34, 211, 238, 0.32)",
+    "text": "#effbff"
+  },
+  "cheatSheet": [
+    {
+      "concept": "Cluster",
+      "reminder": "A Kubernetes cluster is a control plane plus worker nodes that keep declared state aligned with reality.",
+      "useWhen": "Use this when someone describes Kubernetes as a place you manually log into and tweak."
+    },
+    {
+      "concept": "Pod",
+      "reminder": "A Pod is the smallest deployable unit and usually wraps one main container plus its runtime context.",
+      "useWhen": "Use this when tracing where your container actually lives inside Kubernetes."
+    },
+    {
+      "concept": "Deployment",
+      "reminder": "A Deployment manages ReplicaSets so rollout, rollback, and replica count changes stay declarative.",
+      "useWhen": "Use this when the app is stateless and you need safe rolling updates."
+    },
+    {
+      "concept": "Service",
+      "reminder": "A Service gives Pods a stable virtual identity even though the backing Pod IPs change constantly.",
+      "useWhen": "Use this when one workload must call another without caring which replica answers."
+    },
+    {
+      "concept": "ConfigMap versus Secret",
+      "reminder": "ConfigMaps hold non-sensitive configuration; Secrets hold sensitive values but still need careful delivery and access control.",
+      "useWhen": "Use this when deciding where environment variables, credentials, and certificates belong."
+    },
+    {
+      "concept": "Requests and limits",
+      "reminder": "Requests influence scheduling and autoscaling signals; limits enforce upper bounds and can trigger throttling or OOM kills.",
+      "useWhen": "Use this when Pods behave well in dev and badly under shared production load."
+    },
+    {
+      "concept": "ServiceAccount",
+      "reminder": "A ServiceAccount is the workload identity Kubernetes presents to the API and other systems.",
+      "useWhen": "Use this when deciding what a Pod is allowed to read, write, or impersonate."
+    },
+    {
+      "concept": "Istio mTLS",
+      "reminder": "Mutual TLS encrypts service-to-service traffic and binds identity to workload certificates instead of IP addresses.",
+      "useWhen": "Use this when the network is trusted too broadly or service identity is unclear."
+    },
+    {
+      "concept": "Sidecar versus ambient",
+      "reminder": "Sidecars attach a proxy to each Pod, while ambient mode moves parts of the mesh into shared node or waypoint layers.",
+      "useWhen": "Use this when evaluating mesh cost, operational complexity, and feature depth."
+    },
+    {
+      "concept": "Revisions",
+      "reminder": "Both Kubernetes and Istio upgrades are safer when you can run old and new control planes side by side during migration.",
+      "useWhen": "Use this when planning cluster or mesh upgrades without a flag day."
+    }
+  ],
+  "appendix": [
+    {
+      "title": "Version baseline used in this book",
+      "items": [
+        "Kubernetes baseline: 1.36.1, the actively supported 1.36 patch release published on 2026-05-13.",
+        "Istio baseline: 1.30.0, the latest Istio release published on 2026-05-18.",
+        "Gateway API is treated as the forward-looking north-south traffic model, with Ingress covered mainly for compatibility and legacy understanding.",
+        "Istio coverage assumes both classic sidecar mode and ambient mode are worth understanding, but not every workload needs a mesh."
+      ]
+    },
+    {
+      "title": "Suggested reading routes",
+      "items": [
+        "Pure beginner route: Why Kubernetes exists -> Inside the cluster -> Pods, Deployments, and batch work -> Networking, Services, and Gateway API.",
+        "Application owner route: Pods, Deployments, and batch work -> Configuration, storage, and state -> Observability and day-2 operations.",
+        "Platform route: Inside the cluster -> Security, identity, and policy -> Observability and day-2 operations -> Istio 1.30 from first principles.",
+        "Mesh route: Networking, Services, and Gateway API -> Istio 1.30 from first principles -> Traffic management, mesh security, and rollout strategy."
+      ]
+    },
+    {
+      "title": "Plain-language glossary",
+      "items": [
+        "Reconciliation: the control loop that notices drift and pushes the cluster back toward the declared target state.",
+        "ReplicaSet: the object that keeps a specified number of matching Pods running.",
+        "CNI: container network interface, the plugin layer that gives Pods networking.",
+        "CSI: container storage interface, the plugin layer that connects storage systems to Kubernetes.",
+        "Gateway API: a newer Kubernetes API family for traffic entry and routing that is more expressive than classic Ingress.",
+        "Sidecar proxy: a network proxy process running next to an application container inside the same Pod.",
+        "Waypoint proxy: an ambient-mode proxy that handles policy or L7 traffic for a group of workloads."
+      ]
+    },
+    {
+      "title": "Command habits worth learning",
+      "items": [
+        "Read before mutate: get, describe, logs, and events usually explain more than the first restart attempt.",
+        "Scope everything: include namespace and label selectors so you are debugging the exact workload you think you are.",
+        "Inspect rollout state: rollout status and rollout history tell you whether the problem is image, config, readiness, or capacity.",
+        "Compare desired versus actual: manifests, live objects, and events together show whether the bug is authoring, scheduling, networking, or policy."
+      ]
+    },
+    {
+      "title": "Production heuristics",
+      "items": [
+        "Start with plain Kubernetes networking before adopting a mesh, so the extra value is obvious instead of magical.",
+        "Treat Secrets and certificates as delivery pipelines, not just objects sitting in etcd.",
+        "Do regular restore drills; a backup you never restore is only a hopeful archive.",
+        "Prefer progressive delivery and revisions over in-place big-bang upgrades."
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "why-kubernetes-exists",
+      "title": "Why Kubernetes exists",
+      "summary": "This chapter builds the first mental model: Kubernetes is a control system for running many containers reliably, not a more complicated way to start a single process.",
+      "estimatedMinutes": 16,
+      "keyIdeas": [
+        "Kubernetes helps when you need repeatable deployment, recovery, scaling, and team-safe operations across many services.",
+        "The cluster works by reconciling declared state rather than by replaying a manual script forever.",
+        "Objects such as Pods, Deployments, and Services are contracts the system tries to keep true.",
+        "Kubernetes 1.36.1 matters mostly because of supportability, polished APIs, and clearer upgrade expectations, not because beginners need every new feature at once."
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "pods-deployments-and-batch-work",
+        "networking-services-and-gateway-api"
+      ],
+      "mapPosition": {
+        "x": 12,
+        "y": 18
+      },
+      "sections": [
+        {
+          "id": "containers-to-control-loops",
+          "heading": "From one container to a living fleet",
+          "lede": "A single container is easy to start, but a fleet of containers becomes a reliability problem long before it becomes a technology trophy.",
+          "body": [
+            "A laptop workflow usually assumes one machine, one runtime, and a human who notices failure. Production does not. Machines restart, disks fill, nodes disappear, and demand moves around during the day. Kubernetes exists to turn those events from emergencies into expected operating conditions.",
+            "The practical shift is that you stop thinking in terms of starting a process and start thinking in terms of expressing intent. Instead of saying run this exact command right now, you say keep three healthy copies of this workload available, expose them through a stable name, and restart them when they fail."
+          ],
+          "callout": {
+            "label": "First anchor",
+            "tone": "insight",
+            "text": "Kubernetes is most useful when you need a system to keep promises on your behalf."
+          },
+          "links": [
+            {
+              "label": "See where those promises are enforced",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "api-server-and-etcd",
+              "reason": "The control plane is the part of the cluster that stores intent and reacts to drift."
+            },
+            {
+              "label": "Jump to the workload unit",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "Pods are the concrete runtime unit that carries those promises onto nodes."
+            }
+          ]
+        },
+        {
+          "id": "desired-state-and-reconciliation",
+          "heading": "Desired state and reconciliation",
+          "lede": "Kubernetes is easier to understand once you see it as a set of loops that keep comparing what should exist with what actually exists.",
+          "body": [
+            "You submit an object that declares a target state. Controllers then watch the API, compare actual conditions against that target, and create or remove other objects until the gap narrows. If a Pod dies, the system notices the missing replica and creates another. If you change the desired image, the rollout machinery gradually replaces old Pods with new ones.",
+            "This is why the platform feels declarative instead of imperative. You are not carrying every operational step in your head. You are defining the end condition and letting controllers converge toward it. When something looks mysterious, ask which controller owns it and which source of truth it is following."
+          ],
+          "callout": {
+            "label": "Mental model",
+            "tone": "note",
+            "text": "The cluster is a collection of control loops, not one giant script runner."
+          },
+          "links": [
+            {
+              "label": "Meet the controllers directly",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "The reconciliation idea becomes concrete when you study the scheduler and controller manager."
+            },
+            {
+              "label": "Watch the same pattern during rollouts",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Deployments are one of the clearest beginner examples of reconciliation in action."
+            }
+          ]
+        },
+        {
+          "id": "api-objects-and-metadata",
+          "heading": "Objects, labels, and metadata",
+          "lede": "Kubernetes is API-first, which means almost everything you touch is an object with metadata, desired state, and observed state.",
+          "body": [
+            "A manifest is just a way of telling the API about an object. The metadata section gives it a name, namespace, and labels. Labels are especially important because they let other objects refer to a moving group instead of to one fragile instance. A Service does not track Pod names one by one; it selects Pods by label.",
+            "This object model is what makes Kubernetes composable. One object can describe a workload, another can describe network access, another can attach storage, and another can encode policy. Once you learn to read metadata and selectors, the platform stops feeling like a bag of special cases."
+          ],
+          "callout": {
+            "label": "Design habit",
+            "tone": "insight",
+            "text": "Labels are how independent Kubernetes objects discover each other without hard-coding instance names."
+          },
+          "links": [
+            {
+              "label": "See selectors drive discovery",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "Services depend heavily on selectors and labels to route traffic."
+            },
+            {
+              "label": "See metadata meet identity",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "Security policy also depends on names, namespaces, labels, and workload identity."
+            }
+          ]
+        },
+        {
+          "id": "kubernetes-1-36-baseline",
+          "heading": "What the Kubernetes 1.36 baseline means for a beginner",
+          "lede": "The most important thing about Kubernetes 1.36.1 for a new operator is that you are learning on a current, actively supported baseline instead of on legacy habits.",
+          "body": [
+            "A current release line means newer defaults, fewer historical footguns, and documentation that matches what the ecosystem is actually discussing. You do not need to memorize every 1.36 feature. You do need to understand that version skew, API maturity, and support windows are real parts of operating a cluster responsibly.",
+            "Learning on 1.36.1 also nudges you toward modern interfaces such as Gateway API, current security guidance, and cleaner upgrade practices. The safest beginner stance is to prefer stable APIs, read deprecation notes during upgrades, and treat old blog posts as historical context rather than as automatic truth."
+          ],
+          "callout": {
+            "label": "Version stance",
+            "tone": "warning",
+            "text": "Do not copy a Kubernetes tutorial until you know which version and API maturity level it assumes."
+          },
+          "links": [
+            {
+              "label": "Learn the upgrade rules",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "version-skew-and-upgrades",
+              "reason": "Version-skew rules explain how current clusters can be upgraded safely."
+            },
+            {
+              "label": "See the traffic API direction",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "gateway-api-and-ingress",
+              "reason": "Gateway API is a good example of the modern Kubernetes interface direction."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inside-the-cluster",
+      "title": "Inside the cluster",
+      "summary": "This chapter opens the black box of the control plane and the worker node so the rest of Kubernetes stops feeling magical.",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "The API server is the front door and etcd is the persistent store for cluster state.",
+        "Schedulers and controllers turn desired state into actual running resources.",
+        "Kubelet, CNI, CSI, and the container runtime are the node-side machinery that makes Pods real.",
+        "Version skew policies matter because clusters are distributed systems, not one binary you replace in isolation."
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "pods-deployments-and-batch-work",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 33,
+        "y": 10
+      },
+      "sections": [
+        {
+          "id": "api-server-and-etcd",
+          "heading": "The API server and etcd",
+          "lede": "If Kubernetes has a center of gravity, it is the API server reading and writing state backed by etcd.",
+          "body": [
+            "Every meaningful cluster action flows through the API server. Whether you apply a manifest, a controller updates status, or a node reports health, the API is the contract point. This is why permissions, audit logs, admission checks, and custom automation all tend to orbit the API rather than bypass it.",
+            "Etcd is the durable store behind that contract. It holds the cluster's latest accepted state. Beginners do not need to become distributed database experts on day one, but they should understand that losing etcd or corrupting it is far more serious than losing one worker node."
+          ],
+          "callout": {
+            "label": "Core fact",
+            "tone": "insight",
+            "text": "The API is the source of truth; the rest of Kubernetes reacts to it."
+          },
+          "links": [
+            {
+              "label": "Return to the why",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "desired-state-and-reconciliation",
+              "reason": "Reconciliation only works because every actor is reading the same shared state."
+            },
+            {
+              "label": "See why backup discipline matters",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "Day-2 recovery planning always has to respect where cluster state actually lives."
+            }
+          ]
+        },
+        {
+          "id": "scheduler-and-controllers",
+          "heading": "Schedulers and controllers do the moving",
+          "lede": "The API stores intent, but controllers and the scheduler are the agents that turn that intent into action.",
+          "body": [
+            "The scheduler decides where a Pod should run based on requests, constraints, affinity rules, taints, and other signals. The controller manager runs many loops that each own a slice of behavior, such as maintaining replica count, attaching volumes, or reacting to node changes. This separation keeps the platform modular instead of monolithic.",
+            "A helpful debugging habit is to stop blaming Kubernetes as one undifferentiated blob. Ask whether the issue is scheduling, a controller waiting on conditions, a failing node agent, or an external dependency. That question usually cuts the search space down dramatically."
+          ],
+          "callout": {
+            "label": "Debugging cue",
+            "tone": "note",
+            "text": "When something is stuck, identify which control loop owns the next move."
+          },
+          "links": [
+            {
+              "label": "See scheduling meet resources",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "probes-resources-and-evictions",
+              "reason": "Resource requests and limits influence both scheduler choices and runtime behavior."
+            },
+            {
+              "label": "See control loops through events",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "Events are one of the best ways to watch controllers explain what they are doing."
+            }
+          ]
+        },
+        {
+          "id": "node-agents-and-plugins",
+          "heading": "Kubelet, runtime, CNI, and CSI",
+          "lede": "Worker nodes are where the abstract object model becomes a running process with networking and storage.",
+          "body": [
+            "The kubelet watches for Pods assigned to its node and works with the container runtime to start or stop containers. The networking plugin, usually through CNI, provides Pod networking. The storage plugin, usually through CSI, mounts or attaches storage as needed. Together they make the node feel like a small operating platform underneath your app.",
+            "This is why cluster problems often span layers. A Pod can fail even when the Deployment is correct if the image cannot be pulled, the node is pressure-evicting workloads, the CNI is unhealthy, or the volume cannot attach. The manifest is only part of the story."
+          ],
+          "callout": {
+            "label": "Boundary",
+            "tone": "warning",
+            "text": "A valid manifest does not guarantee a valid runtime environment on the chosen node."
+          },
+          "links": [
+            {
+              "label": "Follow storage from API to node",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "persistent-volumes-and-claims",
+              "reason": "Persistent volume behavior makes more sense once you see the CSI layer on the node."
+            },
+            {
+              "label": "Follow traffic from network plugin to Service",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "flat-network-model",
+              "reason": "The Pod network model starts at the node and extends upward into cluster networking."
+            }
+          ]
+        },
+        {
+          "id": "version-skew-and-upgrades",
+          "heading": "Version skew and cluster upgrades",
+          "lede": "Upgrading Kubernetes safely means respecting that different cluster components can briefly run different versions, but only within supported skew rules.",
+          "body": [
+            "Control-plane components, kubelets, and clients do not all jump versions in one instant. The project documents which combinations are supported so that upgrades remain predictable. For beginners, the operational lesson is simple: read the skew policy before you schedule maintenance, and never assume the newest binary can talk safely to every older peer forever.",
+            "Modern upgrades are less about heroics and more about choreography. Upgrade the control plane in the supported order, roll worker nodes progressively, watch workload health, and review API deprecations before rather than after the maintenance window. Kubernetes 1.36.1 is a good baseline precisely because it fits inside current support windows."
+          ],
+          "callout": {
+            "label": "Operational habit",
+            "tone": "insight",
+            "text": "Upgrades are safer when you think in supported combinations, not in a single cluster version string."
+          },
+          "links": [
+            {
+              "label": "Reconnect to the version baseline",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "kubernetes-1-36-baseline",
+              "reason": "The 1.36 baseline matters because supportability and upgradeability are part of the product."
+            },
+            {
+              "label": "See the same pattern in Istio revisions",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "Istio upgrades also become calmer when you run multiple control-plane revisions side by side."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pods-deployments-and-batch-work",
+      "title": "Pods, Deployments, and batch work",
+      "summary": "This chapter turns abstract cluster concepts into the objects most application teams touch every day.",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Pods are the runtime envelope for containers, networking, and volumes.",
+        "Deployments add repeatability for stateless apps by managing ReplicaSets and rollout history.",
+        "Jobs and CronJobs cover finite and scheduled work better than long-running Deployments.",
+        "Readiness, liveness, startup probes, and sane resource settings keep workloads honest under pressure."
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "inside-the-cluster",
+        "networking-services-and-gateway-api",
+        "configuration-storage-and-state",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 26,
+        "y": 36
+      },
+      "sections": [
+        {
+          "id": "pod-lifecycle",
+          "heading": "The Pod lifecycle in plain language",
+          "lede": "A Pod is where your app actually meets the cluster, so it is worth understanding the full journey from scheduling to termination.",
+          "body": [
+            "A Pod starts as an object in the API, gets scheduled to a node, then waits while the node pulls images, mounts volumes, wires networking, and starts containers. Readiness is separate from startup. A container can be running but still not ready for traffic. Termination is also a process: Kubernetes sends signals and gives the Pod time to stop cleanly before forcing it down.",
+            "This lifecycle explains many common surprises. If a Pod keeps restarting, the issue might be your process, its probe configuration, or a missing dependency. If traffic never arrives, the Pod may not be ready. If shutdowns cause errors, termination grace periods or connection draining may be too short."
+          ],
+          "callout": {
+            "label": "Beginner shortcut",
+            "tone": "insight",
+            "text": "Running is not the same thing as ready, and ready is not the same thing as healthy."
+          },
+          "links": [
+            {
+              "label": "See how Services wait for readiness",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "Traffic selection depends on ready endpoints, not just on Pods existing."
+            },
+            {
+              "label": "See where lifecycle evidence appears",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "kubectl-debug-loop",
+              "reason": "The basic kubectl debugging loop is often enough to explain Pod lifecycle failures."
+            }
+          ]
+        },
+        {
+          "id": "deployments-and-rollouts",
+          "heading": "Deployments and rolling updates",
+          "lede": "Deployments package a safe update story around stateless Pods so you do not need to reinvent rollout logic per application.",
+          "body": [
+            "A Deployment describes the desired Pod template and replica count. Under the hood it creates ReplicaSets and shifts traffic gradually from old Pods to new ones according to rollout settings. That gives you rollback history, rollout status, and a stable controller for day-to-day application changes.",
+            "The deeper lesson is that Kubernetes prefers replace-over-mutate workflows. Instead of patching a live container by hand, you publish a new image or config, then let the Deployment produce new Pods from the new template. This makes changes auditable and repeatable."
+          ],
+          "callout": {
+            "label": "Release pattern",
+            "tone": "note",
+            "text": "A Deployment makes change safer by creating new Pods from a new template instead of hand-editing old ones."
+          },
+          "links": [
+            {
+              "label": "See progressive delivery in the mesh",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "Istio adds finer traffic control on top of the rollout mechanisms Kubernetes already gives you."
+            },
+            {
+              "label": "See why config changes matter too",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "configmaps-and-secrets",
+              "reason": "A rollout often includes both image changes and configuration changes."
+            }
+          ]
+        },
+        {
+          "id": "batch-and-scheduled-work",
+          "heading": "Jobs and CronJobs for finite work",
+          "lede": "Not every workload should be a forever-running Deployment; some jobs should finish and some should start only on a schedule.",
+          "body": [
+            "Jobs are for work that has a completion condition, such as database migrations, report generation, or queue draining. CronJobs schedule Jobs on a timetable. Their mental model is closer to task orchestration than to service hosting. Success means exit cleanly once the work is done, not stay alive for months.",
+            "Separating service workloads from batch workloads helps with debugging and capacity planning. A migration job needs different restart, logging, and timeout expectations than a web API. Treating both as the same thing tends to produce brittle release pipelines."
+          ],
+          "callout": {
+            "label": "Workload fit",
+            "tone": "insight",
+            "text": "Use the controller whose success condition matches the shape of the work."
+          },
+          "links": [
+            {
+              "label": "See where persistent state changes matter",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "backing-up-and-moving-state",
+              "reason": "Batch work often touches stored data, so recovery and migration planning matter."
+            },
+            {
+              "label": "See how to observe one-off work",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "Batch failures are often easiest to understand through logs, events, and exit status."
+            }
+          ]
+        },
+        {
+          "id": "probes-resources-and-evictions",
+          "heading": "Probes, resources, and evictions",
+          "lede": "A workload is only as production-ready as its health checks and resource assumptions.",
+          "body": [
+            "Startup, readiness, and liveness probes answer different questions. Startup protects slow-booting apps from being killed too soon. Readiness says whether traffic should flow. Liveness says whether a restart is safer than waiting longer. Requests tell the scheduler what capacity to reserve; limits define hard ceilings the runtime may enforce.",
+            "Node pressure and evictions are where unrealistic settings get punished. Under-provisioned Pods may be packed too tightly, then fail under traffic. Over-tight limits may cause throttling or memory kills. Getting these values right is not tuning trivia; it is part of workload correctness."
+          ],
+          "callout": {
+            "label": "Reliability rule",
+            "tone": "warning",
+            "text": "Wrong health checks can make a healthy app look sick, and wrong resource settings can make a healthy node behave badly."
+          },
+          "links": [
+            {
+              "label": "See scheduler consequences",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "Requests and constraints directly shape scheduling behavior."
+            },
+            {
+              "label": "See autoscaling depend on good signals",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "autoscaling-and-capacity",
+              "reason": "Autoscaling works better when baseline requests and readiness signals are trustworthy."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "networking-services-and-gateway-api",
+      "title": "Networking, Services, and Gateway API",
+      "summary": "This chapter explains how traffic actually reaches workloads in Kubernetes, then bridges that understanding into the pieces Istio extends.",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Kubernetes assumes a mostly flat Pod network where each Pod gets its own IP.",
+        "Services create stable discovery and load balancing over changing Pods.",
+        "Gateway API is the modern Kubernetes-native way to model north-south traffic and routing policy.",
+        "Istio builds on the traffic path you already have; it does not replace the need to understand basic cluster networking."
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "pods-deployments-and-batch-work",
+        "configuration-storage-and-state",
+        "security-identity-and-policy",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 50,
+        "y": 28
+      },
+      "sections": [
+        {
+          "id": "flat-network-model",
+          "heading": "The flat Pod network model",
+          "lede": "Kubernetes networking feels less mysterious when you start from the assumption that Pods should be able to reach each other directly.",
+          "body": [
+            "The common model is that every Pod receives its own IP and can communicate with other Pods without NAT tricks inside the cluster. That does not mean every Pod should be allowed to talk to every other Pod; it means the network model starts permissive and policy is layered on later. This is why networking plugins matter so much: they are implementing a core assumption of the platform.",
+            "For a beginner, the important lesson is that traffic usually flows Pod to Pod, then Services and higher layers add indirection, stability, and policy. If Pod networking is broken, higher abstractions cannot save you."
+          ],
+          "callout": {
+            "label": "Ground truth",
+            "tone": "insight",
+            "text": "Services organize traffic, but the basic network path still depends on Pods being reachable in the cluster network."
+          },
+          "links": [
+            {
+              "label": "See the node-side implementation",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "node-agents-and-plugins",
+              "reason": "CNI is the layer that makes the Pod network model concrete on each node."
+            },
+            {
+              "label": "Add policy on top of that network",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "policy-stacks-across-cluster-and-mesh",
+              "reason": "Network policy and mesh policy are easier to reason about after the base network model is clear."
+            }
+          ]
+        },
+        {
+          "id": "services-dns-and-discovery",
+          "heading": "Services, endpoints, and DNS discovery",
+          "lede": "A Service gives unstable Pods a stable front door so clients can depend on names instead of on changing IP addresses.",
+          "body": [
+            "A Service selects Pods by label and presents a stable virtual IP and DNS name. As Pods come and go, the Service updates its backing endpoints. This lets callers reach a workload class such as checkout-api rather than caring about which replica currently exists. Readiness is important here because only ready endpoints should receive normal traffic.",
+            "This design solves a deep operational problem: the workload can change shape underneath, while its consumers keep calling the same logical name. Once you understand Services, a lot of Kubernetes networking starts to look like carefully managed indirection rather than random complexity."
+          ],
+          "callout": {
+            "label": "Core abstraction",
+            "tone": "note",
+            "text": "Services stabilize addressing in a world where Pods are designed to be disposable."
+          },
+          "links": [
+            {
+              "label": "Reconnect to Pod readiness",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "A Service depends on Pod readiness to decide which endpoints should receive traffic."
+            },
+            {
+              "label": "See how Istio layers richer routing",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "Istio routing builds on stable service identities rather than bypassing them."
+            }
+          ]
+        },
+        {
+          "id": "gateway-api-and-ingress",
+          "heading": "Gateway API, with Ingress as background knowledge",
+          "lede": "Ingress is still common, but Gateway API is the cleaner modern interface for expressing traffic entry and routing roles in Kubernetes.",
+          "body": [
+            "Classic Ingress squeezed many concerns into one resource type. Gateway API breaks the problem into clearer pieces, such as GatewayClass, Gateway, and route resources. That separation makes policy ownership and attachment more explicit, which is especially helpful in larger teams or shared platforms.",
+            "For beginners, the practical takeaway is not that Ingress became useless overnight. It is that new platform design increasingly centers on Gateway API because it models intent more cleanly and leaves room for richer implementations, including service mesh integrations."
+          ],
+          "callout": {
+            "label": "Modern default",
+            "tone": "insight",
+            "text": "Learn Ingress enough to read older setups, but learn Gateway API for forward-looking design."
+          },
+          "links": [
+            {
+              "label": "See how Istio uses gateways too",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "Istio installation choices often include dedicated ingress or waypoint gateway layouts."
+            },
+            {
+              "label": "See where traffic policy deepens",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "Istio routing resources become easier to evaluate once the north-south model is familiar."
+            }
+          ]
+        },
+        {
+          "id": "traffic-path-before-istio",
+          "heading": "The traffic path before you add a mesh",
+          "lede": "You should understand the plain Kubernetes traffic path before you adopt Istio, otherwise the mesh will feel like unexplained magic.",
+          "body": [
+            "Without a mesh, traffic usually moves from a client to a Service, then to one of the selected ready Pods, often through kube-proxy or an equivalent dataplane implementation. For ingress traffic, a gateway or ingress controller accepts outside requests and forwards them into cluster Services. That path already includes DNS, load balancing, TLS decisions, and failure handling.",
+            "Istio adds policy, security, telemetry, and richer routing into that path, but it does not repeal the fundamentals. If DNS is wrong, Services are mis-selected, or the app is not ready, the mesh cannot turn nonsense into reliability."
+          ],
+          "callout": {
+            "label": "Adoption rule",
+            "tone": "warning",
+            "text": "A mesh amplifies a working platform; it does not replace the need for a working platform."
+          },
+          "links": [
+            {
+              "label": "Move into the mesh mental model",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "why-a-service-mesh",
+              "reason": "The value of a service mesh is easier to judge after the base path is clear."
+            },
+            {
+              "label": "See where resilience becomes explicit",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "resilience-with-timeouts-retries-and-outliers",
+              "reason": "Istio lets you codify traffic behavior that otherwise stays buried in clients or gateways."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "configuration-storage-and-state",
+      "title": "Configuration, storage, and state",
+      "summary": "This chapter explains how Kubernetes separates disposable compute from the configuration and persistent data that cannot be treated casually.",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "Configuration changes should be explicit, reviewable, and separated from container images when appropriate.",
+        "Persistent volumes let storage outlive individual Pods.",
+        "StatefulSets give ordered identity and stable storage semantics that Deployments do not promise.",
+        "Backups, restores, and migration paths matter from the moment a workload holds important state."
+      ],
+      "connections": [
+        "pods-deployments-and-batch-work",
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 20,
+        "y": 63
+      },
+      "sections": [
+        {
+          "id": "configmaps-and-secrets",
+          "heading": "ConfigMaps and Secrets",
+          "lede": "Kubernetes gives you dedicated object types for externalized configuration because baking every setting into an image becomes painful fast.",
+          "body": [
+            "ConfigMaps are for non-sensitive configuration such as feature flags, endpoints, or tuning values. Secrets are for sensitive material such as credentials, keys, or tokens. Both can be mounted as files or exposed as environment variables, but they deserve different access patterns and review standards because their risk profile is different.",
+            "The deeper lesson is that configuration is part of deployment behavior, not a side note. If config changes are invisible, unversioned, or copied manually between environments, outages become much harder to explain. Good platform teams make configuration changes as deliberate as code changes."
+          ],
+          "callout": {
+            "label": "Practical boundary",
+            "tone": "note",
+            "text": "ConfigMap versus Secret is less about syntax and more about who may read, rotate, and audit the value."
+          },
+          "links": [
+            {
+              "label": "Connect config to rollout behavior",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Configuration changes often need the same rollout care as image changes."
+            },
+            {
+              "label": "Connect secrets to identity and access",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "secret-delivery-and-supply-chain",
+              "reason": "Secret delivery becomes safer when it is tied to workload identity and controlled pipelines."
+            }
+          ]
+        },
+        {
+          "id": "persistent-volumes-and-claims",
+          "heading": "PersistentVolumes and PersistentVolumeClaims",
+          "lede": "Persistent storage is modeled as a request-and-binding relationship so workloads can ask for storage without hard-coding one disk forever.",
+          "body": [
+            "A PersistentVolumeClaim expresses what a workload needs, such as size and access mode. A PersistentVolume represents actual provided storage, whether dynamically provisioned or pre-created. This separation lets applications request storage in a portable way while storage administrators retain control over the backing implementation.",
+            "The beginner trap is assuming a container filesystem is persistent. It usually is not. If the data matters beyond the life of one Pod, it belongs on attached or networked storage with a recovery story."
+          ],
+          "callout": {
+            "label": "State rule",
+            "tone": "warning",
+            "text": "If you care whether the data survives a Pod restart, you are already in persistent storage territory."
+          },
+          "links": [
+            {
+              "label": "See the node plugin layer underneath",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "node-agents-and-plugins",
+              "reason": "CSI is the bridge between Kubernetes storage objects and the actual storage system."
+            },
+            {
+              "label": "See why restore drills matter",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "Persistent storage without tested recovery is still a fragile design."
+            }
+          ]
+        },
+        {
+          "id": "statefulsets-and-ordered-identity",
+          "heading": "StatefulSets and stable identity",
+          "lede": "StatefulSets exist because some workloads need a stable identity and ordered behavior that a Deployment does not promise.",
+          "body": [
+            "Databases, brokers, and quorum-based systems often care about stable names, ordered startup, and storage attached to specific replicas. StatefulSets provide predictable Pod identities and volume relationships that survive rescheduling. They are not automatically better than Deployments; they are specialized for a different kind of workload truth.",
+            "This matters for beginners because the wrong controller can hide a design mismatch. If an app assumes durable identity but is managed as a disposable stateless Deployment, the symptoms show up later as data confusion, broken clustering, or painful upgrades."
+          ],
+          "callout": {
+            "label": "Controller choice",
+            "tone": "insight",
+            "text": "Use StatefulSets when identity and ordering are part of correctness, not just convenience."
+          },
+          "links": [
+            {
+              "label": "Contrast with Deployments",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "The difference between Deployments and StatefulSets becomes clear when you compare their promises."
+            },
+            {
+              "label": "Connect to traffic behavior",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "Stable identities and stable service discovery often need to work together."
+            }
+          ]
+        },
+        {
+          "id": "backing-up-and-moving-state",
+          "heading": "Backing up and moving state safely",
+          "lede": "Stateful systems become production systems only when you know how to recover them, migrate them, and test those operations calmly.",
+          "body": [
+            "Backups are not one thing. You may need application-consistent snapshots, database-native dumps, object-store replication, and metadata captures. The point is not to collect every backup technology at once. The point is to match backup design to recovery objectives and to the specific failure modes you actually care about.",
+            "Migrations deserve the same seriousness. Moving persistent data between clusters, storage classes, or regions is where hidden assumptions become expensive. Beginners should learn early that state movement is a planned engineering project, not a last-minute shell command."
+          ],
+          "callout": {
+            "label": "Reality check",
+            "tone": "warning",
+            "text": "A backup that has never been restored under pressure is a guess, not a guarantee."
+          },
+          "links": [
+            {
+              "label": "Connect to day-2 drills",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "Operational rhythm is where backup theory becomes real recovery practice."
+            },
+            {
+              "label": "Connect to batch migrations",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "batch-and-scheduled-work",
+              "reason": "Migration jobs often depend on sound data handling and rollback planning."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "security-identity-and-policy",
+      "title": "Security, identity, and policy",
+      "summary": "This chapter shows how Kubernetes and Istio security layers fit together so that access, workload identity, and traffic policy stop feeling scattered.",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "Namespaces, RBAC, and ServiceAccounts are foundational security boundaries in Kubernetes.",
+        "Admission and Pod security controls reduce dangerous workload shapes before they run.",
+        "Secrets are safest when delivery is tied to identity, least privilege, and rotation processes.",
+        "Cluster-level and mesh-level policies should complement each other instead of duplicating confusion."
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "networking-services-and-gateway-api",
+        "configuration-storage-and-state",
+        "observability-and-day-2-operations",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 46,
+        "y": 63
+      },
+      "sections": [
+        {
+          "id": "identities-rbac-and-serviceaccounts",
+          "heading": "Namespaces, RBAC, and ServiceAccounts",
+          "lede": "Kubernetes security starts with deciding who can ask the API for what, and which identity each workload should carry.",
+          "body": [
+            "Namespaces give you a first organization and isolation boundary, but they are not a total security wall by themselves. RBAC decides which users, groups, or ServiceAccounts may read or mutate which resources. ServiceAccounts matter because workloads use them when talking to the Kubernetes API or external systems that trust projected cluster identity.",
+            "The healthy beginner instinct is to avoid broad defaults. If every workload runs as the default ServiceAccount and every team gets edit on everything, the platform may feel easy for a week and dangerous for years."
+          ],
+          "callout": {
+            "label": "Least privilege",
+            "tone": "insight",
+            "text": "Workload identity should be explicit and narrow enough that a compromised Pod does not inherit the whole cluster."
+          },
+          "links": [
+            {
+              "label": "See metadata support identity",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "api-objects-and-metadata",
+              "reason": "Namespaces, labels, and object metadata are the raw materials many policies attach to."
+            },
+            {
+              "label": "See how mTLS extends identity to traffic",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "Istio carries workload identity onto the network path once Kubernetes identity is in place."
+            }
+          ]
+        },
+        {
+          "id": "pod-security-and-admission",
+          "heading": "Pod security and admission control",
+          "lede": "Some of the best security wins happen before a workload ever lands on a node.",
+          "body": [
+            "Admission layers inspect or mutate requests before the API accepts them. That lets you reject risky workload shapes, enforce labels, require image policies, or inject safe defaults. Pod security controls narrow capabilities such as privileged execution, host namespace access, or dangerous volume types that can turn one bad manifest into node-level risk.",
+            "This is important because runtime security is harder once the workload is already there. Prevention beats cleanup. A rejected manifest is inconvenient; a compromised node is expensive."
+          ],
+          "callout": {
+            "label": "Control point",
+            "tone": "warning",
+            "text": "The cheapest place to block an unsafe workload is before the API accepts it."
+          },
+          "links": [
+            {
+              "label": "Reconnect to the API front door",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "api-server-and-etcd",
+              "reason": "Admission control sits directly on the API path where cluster intent is accepted."
+            },
+            {
+              "label": "See how policy shows up in debugging",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "kubectl-debug-loop",
+              "reason": "Denied admissions and policy failures often surface first as surprising apply or rollout errors."
+            }
+          ]
+        },
+        {
+          "id": "secret-delivery-and-supply-chain",
+          "heading": "Secret delivery and software supply chain",
+          "lede": "Security is not just who can call whom; it is also whether the code, image, and credentials entering the cluster can be trusted.",
+          "body": [
+            "Secrets should be delivered through controlled pipelines, rotated deliberately, and exposed only to workloads that genuinely need them. At the same time, container images should come from trusted registries, be scanned, and be pinned or attested according to your risk model. Otherwise the cluster becomes a very efficient way to spread the wrong thing quickly.",
+            "Beginners sometimes separate secret handling from supply-chain handling, but production systems feel them as one story. If you cannot trust the workload identity, the image, or the credential flow, the rest of the policy stack is doing cleanup rather than prevention."
+          ],
+          "callout": {
+            "label": "Joined concern",
+            "tone": "note",
+            "text": "The image you run and the secret you hand it are both part of the same trust boundary."
+          },
+          "links": [
+            {
+              "label": "Return to ConfigMaps and Secrets",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "configmaps-and-secrets",
+              "reason": "The object type is only the start; delivery and rotation complete the story."
+            },
+            {
+              "label": "See mesh identity harden traffic",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "Once the workload is trusted, Istio can help extend that trust onto service-to-service communication."
+            }
+          ]
+        },
+        {
+          "id": "policy-stacks-across-cluster-and-mesh",
+          "heading": "Policy stacks across cluster and mesh",
+          "lede": "Kubernetes and Istio both have policy surfaces, so the goal is alignment rather than duplication.",
+          "body": [
+            "Kubernetes policy can govern who can deploy, what a Pod may look like, and which network paths are allowed at a coarse layer. Istio policy can then govern service identity, mTLS, request authorization, and richer traffic behavior at the service path. These layers complement each other when each one owns a clear concern.",
+            "Confusion appears when teams pile overlapping controls everywhere without agreeing on intent. For example, a network deny might fail a call before an Istio authorization policy is even reached. That is not wrong, but it means debugging and policy ownership must be explicit."
+          ],
+          "callout": {
+            "label": "Layering rule",
+            "tone": "insight",
+            "text": "Security controls are strongest when each layer has a clear job and a visible owner."
+          },
+          "links": [
+            {
+              "label": "See the basic network underneath",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "flat-network-model",
+              "reason": "Policy layering is easier to debug when you already know the unadorned traffic path."
+            },
+            {
+              "label": "See Istio authorization in detail",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "The mesh layer is where identity-aware traffic policy becomes especially powerful."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "observability-and-day-2-operations",
+      "title": "Observability and day-2 operations",
+      "summary": "This chapter focuses on the operational loop after the first deployment: how to understand failures, scale sanely, and keep recovery rehearsed.",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "Debugging gets easier when you compare desired state, live state, and recent events together.",
+        "Logs, metrics, events, and traces answer different questions and work best as a combined toolkit.",
+        "Autoscaling is only as reliable as the signals and resource assumptions beneath it.",
+        "Backups, upgrade drills, and routine maintenance are part of operating the platform, not optional afterthoughts."
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "pods-deployments-and-batch-work",
+        "configuration-storage-and-state",
+        "security-identity-and-policy",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 70,
+        "y": 48
+      },
+      "sections": [
+        {
+          "id": "kubectl-debug-loop",
+          "heading": "A kubectl debugging loop that scales with you",
+          "lede": "The best beginner debugging loop is simple: find the object, compare desired and actual state, then read events and container evidence before changing anything.",
+          "body": [
+            "Start broad, then narrow. Identify the namespace and controller, inspect rollout or status conditions, describe the object, inspect related Pods, and read recent events. Then look at logs, previous container logs if the workload is crashing, and any readiness or probe failures. This sequence is boring in a useful way because it prevents random guesswork.",
+            "As systems grow, the same loop still works. The only difference is that dashboards, tracing, and automation help you execute it faster. The mental model does not change: what was expected, what actually happened, and which component is signaling why."
+          ],
+          "callout": {
+            "label": "Debugging habit",
+            "tone": "insight",
+            "text": "Read state and evidence first; restarts should answer a hypothesis, not replace one."
+          },
+          "links": [
+            {
+              "label": "Reconnect to controller ownership",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "Knowing the owning control loop makes kubectl output far easier to interpret."
+            },
+            {
+              "label": "Reconnect to Pod lifecycle clues",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "Most first-line debugging still comes back to container startup, readiness, or shutdown behavior."
+            }
+          ]
+        },
+        {
+          "id": "logs-metrics-events-and-traces",
+          "heading": "Logs, metrics, events, and traces play different roles",
+          "lede": "Observability works best when you stop asking one tool to answer every question.",
+          "body": [
+            "Logs explain detailed local behavior, metrics summarize change over time, events reveal what Kubernetes control loops recently decided, and traces show how one request crossed system boundaries. None replaces the others. A high error-rate metric may tell you something is wrong, while traces show which hop failed and logs explain why that hop behaved that way.",
+            "In Kubernetes and Istio environments, events and traces become especially valuable because there are many moving parts. A deployment may be healthy while a route is wrong, or the route may be correct while one downstream service is slow. Multi-signal observability keeps you from attaching certainty to the first chart you open."
+          ],
+          "callout": {
+            "label": "Signal choice",
+            "tone": "note",
+            "text": "Use the signal that matches the question instead of forcing every problem through logs alone."
+          },
+          "links": [
+            {
+              "label": "See where rollout failures surface",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Rollouts often fail first in events and status conditions before the app team notices user impact."
+            },
+            {
+              "label": "See why mesh telemetry is attractive",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "mesh-baseline-for-beginners",
+              "reason": "Istio can add consistent traffic telemetry when application instrumentation is uneven."
+            }
+          ]
+        },
+        {
+          "id": "autoscaling-and-capacity",
+          "heading": "Autoscaling and capacity planning",
+          "lede": "Autoscaling is not a substitute for capacity thinking; it is one tool inside capacity thinking.",
+          "body": [
+            "Horizontal autoscaling responds to signals such as CPU, memory, or custom metrics, but those signals are only useful if requests, limits, and readiness are already reasonable. Cluster autoscaling then adds or removes nodes based on pending work and scheduling pressure. Together they can create graceful elasticity, but only if the workloads are honest about what they need.",
+            "Capacity planning also includes noisy neighbors, sudden bursts, batch windows, and failure domains. A cluster that survives average load may still fail during rollout, failover, or a regional event. Beginners often focus on the happy path and under-invest in headroom and disruption scenarios."
+          ],
+          "callout": {
+            "label": "Scaling truth",
+            "tone": "warning",
+            "text": "Autoscaling can amplify bad assumptions just as effectively as it amplifies good ones."
+          },
+          "links": [
+            {
+              "label": "Reconnect to requests and limits",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "probes-resources-and-evictions",
+              "reason": "Good autoscaling begins with believable resource signals."
+            },
+            {
+              "label": "See where mesh retries affect load",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "resilience-with-timeouts-retries-and-outliers",
+              "reason": "Traffic policy can change capacity behavior dramatically if retries or failover are too aggressive."
+            }
+          ]
+        },
+        {
+          "id": "backups-drills-and-day-2-rhythm",
+          "heading": "Backups, drills, and the day-2 rhythm",
+          "lede": "Operational maturity is less about one heroic incident response and more about rehearsed habits that keep incidents ordinary.",
+          "body": [
+            "A healthy day-2 rhythm includes regular backup verification, upgrade rehearsal, certificate rotation checks, node replacement practice, and post-incident learning. These are not chores bolted onto the platform later. They are the maintenance loops that keep the platform trustworthy over time.",
+            "Drills matter because they expose hidden dependencies while you still have breathing room. The first time you restore etcd, rotate mesh certificates, or evacuate a node pool should not be during a live outage. Calm repetitions create reliable instincts."
+          ],
+          "callout": {
+            "label": "Operational stance",
+            "tone": "insight",
+            "text": "Routine drills turn rare high-stress events into familiar muscle memory."
+          },
+          "links": [
+            {
+              "label": "Reconnect to state recovery",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "backing-up-and-moving-state",
+              "reason": "Storage recovery plans are one of the biggest parts of day-2 confidence."
+            },
+            {
+              "label": "Connect to mesh and cluster upgrades",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "Upgrade discipline becomes real through staged rehearsals and rollback plans."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "istio-1-30-from-first-principles",
+      "title": "Istio 1.30 from first principles",
+      "summary": "This chapter introduces service mesh concepts for people who already understand the basic Kubernetes traffic path and want to know what Istio actually adds.",
+      "estimatedMinutes": 22,
+      "keyIdeas": [
+        "A service mesh centralizes traffic policy, identity, and telemetry that would otherwise be inconsistent across services.",
+        "Istio 1.30.0 gives you both classic sidecar mode and ambient-mode patterns to evaluate.",
+        "Istiod manages configuration and certificates while data-plane components enforce traffic behavior.",
+        "Revisions and dedicated gateway layouts make mesh upgrades and boundary management safer."
+      ],
+      "connections": [
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 78,
+        "y": 18
+      },
+      "sections": [
+        {
+          "id": "why-a-service-mesh",
+          "heading": "Why people add a service mesh",
+          "lede": "A mesh becomes attractive when service-to-service traffic needs consistent security, observability, and routing behavior that teams cannot realistically keep aligned by hand.",
+          "body": [
+            "Without a mesh, each application stack may implement TLS, retries, timeouts, telemetry, and authorization differently. Some teams do it well, some partially, and some never get to it. A mesh moves much of that concern into shared infrastructure so platform teams can define common traffic behavior while application teams focus on business logic.",
+            "That does not mean every cluster needs Istio. The honest question is whether the added control justifies the added complexity. If you have only a few services and little cross-team inconsistency, plain Kubernetes may be enough. If you need uniform identity, progressive traffic shifting, and mesh-wide policy, Istio becomes easier to justify."
+          ],
+          "callout": {
+            "label": "Adoption filter",
+            "tone": "note",
+            "text": "A mesh is valuable when it removes repeated application-level traffic work, not when it merely adds a fashionable layer."
+          },
+          "links": [
+            {
+              "label": "Reconnect to the plain traffic path",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "traffic-path-before-istio",
+              "reason": "You can only evaluate mesh value clearly once you know what the platform already provides."
+            },
+            {
+              "label": "See where the value cashes out",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "reason": "Traffic policy, identity, and rollout control are the main practical outputs of the mesh."
+            }
+          ]
+        },
+        {
+          "id": "istiod-sidecars-and-ambient",
+          "heading": "Istiod, sidecars, and ambient mode",
+          "lede": "Istio has a control plane that distributes policy and certificates, plus data-plane components that actually sit on the traffic path.",
+          "body": [
+            "In classic sidecar mode, each Pod gets a local proxy that intercepts traffic for that workload. This gives rich per-workload control but adds resource overhead and operational surface. In ambient mode, some of that responsibility moves into shared layers such as ztunnel and waypoint proxies, which can lower app-coupled overhead while changing how and where policy is enforced.",
+            "For a beginner, the important comparison is not which mode wins on social media. It is which mode matches your needs. Sidecars remain straightforward when you want the longest-established behavior model. Ambient mode is compelling when cost, simplicity for some workloads, or gradual adoption shape the decision."
+          ],
+          "callout": {
+            "label": "Mode choice",
+            "tone": "insight",
+            "text": "Sidecar and ambient are different placement strategies for the same broad goals of policy, security, and telemetry."
+          },
+          "links": [
+            {
+              "label": "Reconnect to workload identity",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "Istio traffic identity becomes clearer once Kubernetes workload identity is familiar."
+            },
+            {
+              "label": "See waypoint use in rollout planning",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "Waypoint placement and mode choice affect how you stage mesh adoption."
+            }
+          ]
+        },
+        {
+          "id": "install-revisions-and-gateway-layout",
+          "heading": "Installation, revisions, and gateway layout",
+          "lede": "Installing Istio well is less about the first command and more about where you place control planes, gateways, and upgrade boundaries.",
+          "body": [
+            "Istio revisions let you run multiple control-plane versions side by side and move workloads gradually. That reduces upgrade risk dramatically because you can shift namespaces or workloads toward a new revision instead of rewriting the plane in place. It is the mesh equivalent of preferring gradual rollout over all-at-once replacement.",
+            "Gateway layout matters too. You may run dedicated ingress gateways, separate east-west gateways, or waypoint proxies for selected traffic scopes. Good layouts make blast radius, policy ownership, and performance easier to reason about. Bad layouts hide coupling until the first incident."
+          ],
+          "callout": {
+            "label": "Upgrade principle",
+            "tone": "warning",
+            "text": "If your only mesh upgrade plan is replace everything at once, your real plan is hope."
+          },
+          "links": [
+            {
+              "label": "Reconnect to cluster skew rules",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "version-skew-and-upgrades",
+              "reason": "Both cluster and mesh upgrades reward staged, supported version transitions."
+            },
+            {
+              "label": "See traffic policy at the gateways",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "Gateway layout and routing policy are tightly connected."
+            }
+          ]
+        },
+        {
+          "id": "mesh-baseline-for-beginners",
+          "heading": "A reasonable beginner baseline for Istio 1.30",
+          "lede": "The safest way to learn Istio is to adopt one clear use case at a time rather than enabling every mesh feature on day one.",
+          "body": [
+            "A practical beginner baseline is usually a small set of workloads, clear namespace boundaries, simple ingress routing, default telemetry, and one or two security goals such as mTLS or service-to-service authorization. This keeps the first deployment understandable. You can then add advanced traffic shaping, waypoints, or ambient expansion once the basic operating model feels ordinary.",
+            "Istio 1.30.0 is current enough that you should prefer revision-based installs, current docs, and explicit mode choices. The point of a beginner baseline is not to stay small forever. It is to build a mental model that can safely grow."
+          ],
+          "callout": {
+            "label": "Learning strategy",
+            "tone": "insight",
+            "text": "Adopt the mesh for one real outcome first, then widen the footprint only after the operational model is clear."
+          },
+          "links": [
+            {
+              "label": "See the observability payoff",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "Mesh telemetry is most useful when you know how it complements existing signals."
+            },
+            {
+              "label": "Continue into traffic and security policy",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "reason": "The next step is understanding what concrete behavior the mesh can control."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "traffic-management-mesh-security-and-rollout-strategy",
+      "title": "Traffic management, mesh security, and rollout strategy",
+      "summary": "This chapter goes deep on the part of Istio most teams adopt for: precise traffic control, service identity, resilience behavior, and safer change rollout.",
+      "estimatedMinutes": 26,
+      "keyIdeas": [
+        "Istio routing resources let you steer traffic deliberately instead of relying only on replica replacement.",
+        "Retries, timeouts, and outlier detection are powerful but can backfire if they ignore capacity realities.",
+        "mTLS and authorization policies move trust from IP-based assumptions toward workload identity.",
+        "Canarying, waypoints, and revision-based upgrades reduce risk when changing either apps or the mesh itself."
+      ],
+      "connections": [
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations",
+        "istio-1-30-from-first-principles"
+      ],
+      "mapPosition": {
+        "x": 82,
+        "y": 68
+      },
+      "sections": [
+        {
+          "id": "virtualservices-destinationrules-and-gateways",
+          "heading": "VirtualServices, DestinationRules, and gateways",
+          "lede": "Istio traffic management is easiest to learn when you split the problem into where traffic enters, how it is matched, and where it goes next.",
+          "body": [
+            "Gateway resources define traffic entry points, while route and policy resources decide how requests are matched and forwarded. VirtualServices express routing intent such as path matches, header-based branching, or weighted traffic splits. DestinationRules describe policies for subsets or destinations, such as connection behavior or subset definitions tied to labels.",
+            "The power here is precision. Instead of saying deploy version B and hope the rollout pattern is enough, you can explicitly direct 10 percent of traffic to a labeled subset, keep certain requests on a stable path, or route specific tenants differently. That control is what makes advanced canaries and shared platform policy practical."
+          ],
+          "callout": {
+            "label": "Routing lens",
+            "tone": "insight",
+            "text": "Kubernetes gives you service discovery; Istio adds programmable traffic decisions on top of that discovery."
+          },
+          "links": [
+            {
+              "label": "Reconnect to Service discovery",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "Istio routing still relies on stable service identities under the hood."
+            },
+            {
+              "label": "Reconnect to mesh install boundaries",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "Gateway placement and revision strategy influence how these routing policies are applied."
+            }
+          ]
+        },
+        {
+          "id": "resilience-with-timeouts-retries-and-outliers",
+          "heading": "Resilience with timeouts, retries, and outlier handling",
+          "lede": "Resilience policies are powerful because they turn failure handling from hidden client code into visible platform behavior.",
+          "body": [
+            "Timeouts bound how long a request may wait. Retries offer a second chance when failure is transient. Circuit breaking or outlier handling can stop sending traffic to instances that appear unhealthy. These tools are useful precisely because distributed systems fail in partial, uneven ways.",
+            "But they are dangerous if used carelessly. Aggressive retries can multiply load during an outage and turn a slow service into a total failure. Timeouts that are shorter than normal tail latency can create false failures. Good resilience policy reflects real workload behavior and is verified with load and fault testing."
+          ],
+          "callout": {
+            "label": "Failure math",
+            "tone": "warning",
+            "text": "Retries are not free; they are extra work your system must survive during its worst moments."
+          },
+          "links": [
+            {
+              "label": "Reconnect to autoscaling and capacity",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "autoscaling-and-capacity",
+              "reason": "Traffic resilience policy and capacity planning must be designed together."
+            },
+            {
+              "label": "Reconnect to the plain traffic path",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "traffic-path-before-istio",
+              "reason": "You need the baseline path in mind to see where retries and failover are being injected."
+            }
+          ]
+        },
+        {
+          "id": "mtls-authz-and-identity-boundaries",
+          "heading": "mTLS, authorization, and identity boundaries",
+          "lede": "One of Istio's biggest value propositions is turning service identity into an enforceable part of the traffic path.",
+          "body": [
+            "Mutual TLS encrypts traffic and gives each workload a certificate-backed identity. Authorization policies can then make decisions based on that identity, on namespace, on principals, or on request properties. This is a major shift away from trusting networks or static IP ranges as the main boundary.",
+            "The result is not perfect security by default. You still need sound workload identity, sane namespace design, and careful policy rollouts. But it gives you a much richer and more auditable trust model than network location alone."
+          ],
+          "callout": {
+            "label": "Identity upgrade",
+            "tone": "insight",
+            "text": "Istio security is strongest when it treats workloads as named identities, not just as packets from an address."
+          },
+          "links": [
+            {
+              "label": "Reconnect to ServiceAccounts and RBAC",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "Mesh identity builds on the workload identities Kubernetes already establishes."
+            },
+            {
+              "label": "Reconnect to policy layering",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "policy-stacks-across-cluster-and-mesh",
+              "reason": "This is where cluster policy and mesh policy most obviously need clear division of responsibility."
+            }
+          ]
+        },
+        {
+          "id": "canaries-waypoints-and-upgrades",
+          "heading": "Canaries, waypoints, and upgrades",
+          "lede": "The safest mesh and application changes are the ones you can expose gradually, observe carefully, and reverse quickly.",
+          "body": [
+            "Weighted routing enables canaries that are decoupled from raw replica count, which is especially useful when traffic value is not evenly distributed across requests. Waypoint proxies and revision-based rollout patterns can isolate where new policy or new mesh behavior is introduced. Together they let you test change boundaries intentionally instead of hoping the average case is representative.",
+            "The operational pattern is always the same: shrink blast radius, increase observability, and keep rollback close at hand. This applies to app releases, gateway changes, mesh upgrades, and ambient adoption. The tooling differs, but the discipline is the same."
+          ],
+          "callout": {
+            "label": "Release discipline",
+            "tone": "note",
+            "text": "Progressive delivery is a way of buying information before you spend the full risk budget."
+          },
+          "links": [
+            {
+              "label": "Reconnect to Deployment rollouts",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Istio canaries extend rather than replace the basic rollout discipline Kubernetes already provides."
+            },
+            {
+              "label": "Reconnect to day-2 drills",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "Progressive upgrades only stay safe when rollback and verification have been rehearsed."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

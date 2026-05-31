@@ -17,22 +17,35 @@ export function KnowledgeMap({
   size = 'compact',
 }: KnowledgeMapProps) {
   const chapterById = new Map(book.chapters.map((chapter) => [chapter.id, chapter]))
-  const lines = book.chapters.flatMap((chapter) =>
-    chapter.connections
-      .filter((targetId) => chapter.id < targetId)
-      .map((targetId) => {
+  const lines = Array.from(
+    book.chapters.reduce<
+      Map<
+        string,
+        {
+          key: string
+          from: (typeof book.chapters)[number]['mapPosition']
+          to: (typeof book.chapters)[number]['mapPosition']
+        }
+      >
+    >((edgeMap, chapter) => {
+      chapter.connections.forEach((targetId) => {
         const target = chapterById.get(targetId)
         if (!target) {
-          return null
+          return
         }
 
-        return {
-          key: `${chapter.id}-${targetId}`,
-          from: chapter.mapPosition,
-          to: target.mapPosition,
+        const key = [chapter.id, targetId].sort().join('--')
+        if (!edgeMap.has(key)) {
+          edgeMap.set(key, {
+            key,
+            from: chapter.mapPosition,
+            to: target.mapPosition,
+          })
         }
       })
-      .filter((line): line is NonNullable<typeof line> => Boolean(line)),
+
+      return edgeMap
+    }, new Map()).values(),
   )
 
   return (
@@ -53,12 +66,14 @@ export function KnowledgeMap({
         const completion = getChapterCompletion(chapter, progress)
         const isCurrent = chapter.id === currentChapterId
         const isComplete = completion === 1
+        const completionLabel = `${Math.round(completion * 100)}% explored`
 
         return (
           <button
             key={chapter.id}
             type="button"
             className={`map-node${isCurrent ? ' is-current' : ''}${isComplete ? ' is-complete' : ''}`}
+            aria-label={`${chapter.title}, ${completionLabel}${isCurrent ? ', current chapter' : ''}`}
             style={{
               insetInlineStart: `${chapter.mapPosition.x}%`,
               insetBlockStart: `${chapter.mapPosition.y}%`,
@@ -66,7 +81,7 @@ export function KnowledgeMap({
             onClick={() => onSelectChapter(chapter.id)}
           >
             <strong>{chapter.title}</strong>
-            <span>{Math.round(completion * 100)}% explored</span>
+            <span>{completionLabel}</span>
           </button>
         )
       })}

@@ -48,5 +48,23 @@
     "file": "books/fundamentals-of-llms.json",
     "accent": "#38bdf8",
     "surface": "#0b1324"
+  },
+  {
+    "id": "kubernetes-and-istio-from-zero",
+    "title": "Kubernetes and Istio from Zero",
+    "subtitle": "A beginner-friendly deep dive into containers, clusters, and service mesh operations",
+    "description": "A field guide for newcomers that starts with first principles and lands in modern production patterns across Kubernetes 1.36.1 and Istio 1.30.0.",
+    "coverEmoji": "⎈",
+    "durationMinutes": 176,
+    "tags": [
+      "Kubernetes",
+      "Istio",
+      "Containers",
+      "Platform engineering",
+      "Service mesh"
+    ],
+    "file": "books/kubernetes-and-istio-from-zero.json",
+    "accent": "#22d3ee",
+    "surface": "#071826"
   }
 ]
