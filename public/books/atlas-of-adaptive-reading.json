@@ -1,0 +1,273 @@
+{
+  "id": "atlas-of-adaptive-reading",
+  "title": "Atlas of Adaptive Reading",
+  "subtitle": "A handbook for moving through idea webs instead of static pages",
+  "description": "This sample book shows how chapters, jump links, cheat sheets, and appendices can support an AI-generated book that feels more like a living reference.",
+  "coverEmoji": "🧭",
+  "durationMinutes": 42,
+  "tags": ["Reader UX", "Knowledge graph", "Recall loops"],
+  "theme": {
+    "accent": "#8b5cf6",
+    "surface": "#160f2b",
+    "glow": "rgba(139, 92, 246, 0.42)",
+    "text": "#f7f3ff"
+  },
+  "cheatSheet": [
+    {
+      "concept": "Question-first reading",
+      "reminder": "Start from the question the reader has, not from the canonical first page.",
+      "useWhen": "Use this when the reader already knows part of the topic and wants a direct route."
+    },
+    {
+      "concept": "Bridge sections",
+      "reminder": "Short sections should point outward to the next useful concept.",
+      "useWhen": "Use this when a concept only makes sense in relation to another chapter."
+    },
+    {
+      "concept": "Recall layer",
+      "reminder": "A cheat sheet compresses a whole chapter into a quick reminder layer.",
+      "useWhen": "Use this when returning readers need a fast refresher."
+    },
+    {
+      "concept": "Appendix traces",
+      "reminder": "Keep glossary material and supporting evidence in the appendix so the main path stays light.",
+      "useWhen": "Use this when detail is important but not always needed on the first pass."
+    }
+  ],
+  "appendix": [
+    {
+      "title": "Reader mode glossary",
+      "items": [
+        "Bridge: a link that explains why another section matters next.",
+        "Recall layer: a compressed review surface such as a cheat sheet.",
+        "Concept map: a visual arrangement of chapters and their relationships."
+      ]
+    },
+    {
+      "title": "Design cues",
+      "items": [
+        "Prefer stable IDs so saved progress survives future edits.",
+        "Keep chapter summaries short enough to scan from a sidebar.",
+        "Make map positions feel spatially meaningful rather than decorative."
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "entry-points",
+      "title": "Entry points",
+      "summary": "Readers should be able to begin from intent, not only from page one.",
+      "estimatedMinutes": 9,
+      "keyIdeas": ["Start from intent", "Expose fast routes", "Keep sections linkable"],
+      "connections": ["chapter-web", "recall-layers"],
+      "mapPosition": { "x": 18, "y": 28 },
+      "sections": [
+        {
+          "id": "ask-first",
+          "heading": "Ask-first reading",
+          "lede": "A connected book becomes easier to use when the first interaction is a question, not a table of pages.",
+          "body": [
+            "Traditional reading apps assume every reader wants the same route. A reference-style book accepts that one person arrives to understand a missing concept while another returns to check a detail they already half remember.",
+            "That means the opening state should surface chapter summaries, search-like entry points, and routes that are framed around goals instead of chronology."
+          ],
+          "callout": {
+            "label": "Pattern",
+            "tone": "insight",
+            "text": "Treat the first screen like a launch pad: show where each chapter leads, not just where it sits in order."
+          },
+          "links": [
+            {
+              "label": "Open the chapter web",
+              "targetChapterId": "chapter-web",
+              "targetSectionId": "toc-as-map",
+              "reason": "Turn an ordered table of contents into a route map."
+            }
+          ]
+        },
+        {
+          "id": "skim-for-bridges",
+          "heading": "Skim for bridges",
+          "lede": "Sections should help the reader decide what to jump to next before they commit to a long scroll.",
+          "body": [
+            "A useful skim layer includes concise summaries, visible chapter relationships, and small pieces of evidence that reveal which chapter unlocks the next question.",
+            "The payoff is speed: readers can move laterally across the book instead of repeatedly starting over from the beginning."
+          ],
+          "callout": {
+            "label": "Why it matters",
+            "tone": "note",
+            "text": "Bridge text explains why a jump is worth taking, which makes the graph feel editorial rather than random."
+          },
+          "links": [
+            {
+              "label": "See recall layers",
+              "targetChapterId": "recall-layers",
+              "targetSectionId": "cheat-sheet-mode",
+              "reason": "Bridge sections work better when readers can also drop into fast reminders."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chapter-web",
+      "title": "Chapter web",
+      "summary": "The table of contents can behave like a map when chapter relationships are explicit.",
+      "estimatedMinutes": 11,
+      "keyIdeas": ["Expose relationships", "Map before scroll", "Make routes visible"],
+      "connections": ["entry-points", "recall-layers", "handoff-prompts"],
+      "mapPosition": { "x": 54, "y": 18 },
+      "sections": [
+        {
+          "id": "toc-as-map",
+          "heading": "Turn the table of contents into a map",
+          "lede": "A chapter list becomes more powerful when it shows adjacency and progress, not only order.",
+          "body": [
+            "Most tables of contents answer the question \"what comes next?\" A map adds two more answers: \"what is nearby?\" and \"what should I open if I am stuck here?\"",
+            "Showing chapter completion and concept links together encourages readers to move between ideas with confidence instead of losing context."
+          ],
+          "callout": {
+            "label": "Design cue",
+            "tone": "insight",
+            "text": "Maps do not replace the table of contents; they enrich it with relationship data."
+          },
+          "links": [
+            {
+              "label": "Return to entry points",
+              "targetChapterId": "entry-points",
+              "targetSectionId": "ask-first",
+              "reason": "Map design starts with the reader's opening question."
+            }
+          ]
+        },
+        {
+          "id": "chapter-links",
+          "heading": "Link chapters with reasons",
+          "lede": "A jump becomes trustworthy when the UI explains why the next chapter is relevant.",
+          "body": [
+            "Unexplained links look decorative. Reasoned links feel editorial: they tell the reader whether the next chapter offers background, contrast, evidence, or a faster summary.",
+            "This is how a knowledge graph stops being a novelty and becomes a real navigation tool."
+          ],
+          "callout": {
+            "label": "Constraint",
+            "tone": "warning",
+            "text": "Avoid linking every chapter to every other chapter. A dense graph without editorial intent is harder to use than a simple list."
+          },
+          "links": [
+            {
+              "label": "Use recall layers to compress routes",
+              "targetChapterId": "recall-layers",
+              "targetSectionId": "appendix-traces",
+              "reason": "Summary surfaces prevent the graph from forcing long detours."
+            },
+            {
+              "label": "Prepare a handoff prompt",
+              "targetChapterId": "handoff-prompts",
+              "targetSectionId": "resume-prompts",
+              "reason": "Bookmarks are more useful when the next action is clearly named."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recall-layers",
+      "title": "Recall layers",
+      "summary": "Cheat sheets and appendices help readers re-enter the book without rereading every chapter.",
+      "estimatedMinutes": 10,
+      "keyIdeas": ["Compress knowledge", "Separate fast review from deep detail", "Support re-entry"],
+      "connections": ["entry-points", "chapter-web", "handoff-prompts"],
+      "mapPosition": { "x": 30, "y": 68 },
+      "sections": [
+        {
+          "id": "cheat-sheet-mode",
+          "heading": "Cheat-sheet mode",
+          "lede": "A cheat sheet is the book's quick-memory layer: small, portable, and closer to retrieval than discovery.",
+          "body": [
+            "Readers often revisit a book because they remember the shape of an idea but not the precise phrase or next move. Cheat sheets answer that need directly.",
+            "In an AI-generated book, the cheat sheet also provides a compact summary the model can preserve when regenerating adjacent sections."
+          ],
+          "callout": {
+            "label": "Shortcut",
+            "tone": "note",
+            "text": "If a chapter cannot produce a sharp cheat-sheet reminder, the chapter may still be too fuzzy."
+          },
+          "links": [
+            {
+              "label": "Map the route first",
+              "targetChapterId": "chapter-web",
+              "targetSectionId": "chapter-links",
+              "reason": "The best recall shortcuts still need clear onward routes."
+            }
+          ]
+        },
+        {
+          "id": "appendix-traces",
+          "heading": "Appendix traces",
+          "lede": "Keep definitions, source trails, and operating notes nearby without making every section heavy.",
+          "body": [
+            "An appendix works well when it behaves like a support shelf: always available, rarely in the way. It carries durable details while the main text stays focused on movement between ideas.",
+            "This split is especially useful for generated books because the appendix can stabilize repeated concepts across versions."
+          ],
+          "links": [
+            {
+              "label": "Package the next step as a prompt",
+              "targetChapterId": "handoff-prompts",
+              "targetSectionId": "resume-prompts",
+              "reason": "Appendix notes become actionable when they are paired with a clear resume instruction."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "handoff-prompts",
+      "title": "Handoff prompts",
+      "summary": "Readers should be able to leave and return with enough context to continue instantly.",
+      "estimatedMinutes": 12,
+      "keyIdeas": ["Leave context behind", "Resume instantly", "Make bookmarks actionable"],
+      "connections": ["chapter-web", "recall-layers"],
+      "mapPosition": { "x": 72, "y": 64 },
+      "sections": [
+        {
+          "id": "resume-prompts",
+          "heading": "Bookmarks as next-step prompts",
+          "lede": "A bookmark becomes more useful when it stores what the reader intended to do next.",
+          "body": [
+            "Instead of saving only position, save the chapter and section that best explain the reader's current task. This creates a bookmark with narrative momentum.",
+            "When progress is local-first, this handoff stays lightweight and private while still helping the reader restart quickly."
+          ],
+          "callout": {
+            "label": "Implementation hint",
+            "tone": "insight",
+            "text": "Keep saved progress tied to stable chapter and section IDs so future schema changes stay compatible."
+          },
+          "links": [
+            {
+              "label": "Review the cheat sheet",
+              "targetChapterId": "recall-layers",
+              "targetSectionId": "cheat-sheet-mode",
+              "reason": "A bookmark is strongest when a quick refresher is one tap away."
+            }
+          ]
+        },
+        {
+          "id": "exit-with-context",
+          "heading": "Exit with context",
+          "lede": "The best reader state captures enough context that returning feels like continuing, not restarting.",
+          "body": [
+            "Progress alone tells the reader where they were. Context tells them why they were there. Together they create a more generous return experience.",
+            "This is one of the clearest advantages of a local PWA: it can quietly remember orientation cues without requiring a backend or account."
+          ],
+          "links": [
+            {
+              "label": "Revisit the first entry point",
+              "targetChapterId": "entry-points",
+              "targetSectionId": "skim-for-bridges",
+              "reason": "Good exits mirror good entrances by exposing the next useful route."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

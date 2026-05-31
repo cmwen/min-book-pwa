@@ -1,0 +1,257 @@
+{
+  "id": "field-guide-to-quiet-automation",
+  "title": "Field Guide to Quiet Automation",
+  "subtitle": "Small local systems that help without taking over",
+  "description": "This sample book explores how local-first automation tools can stay understandable, reversible, and calm for the people using them.",
+  "coverEmoji": "🌿",
+  "durationMinutes": 36,
+  "tags": ["Automation", "Local-first", "Systems thinking"],
+  "theme": {
+    "accent": "#22c55e",
+    "surface": "#0f1f1a",
+    "glow": "rgba(34, 197, 94, 0.34)",
+    "text": "#ecfff5"
+  },
+  "cheatSheet": [
+    {
+      "concept": "Listen first",
+      "reminder": "Instrument the work before you automate it.",
+      "useWhen": "Use this before adding a new helper or shortcut."
+    },
+    {
+      "concept": "Tiny loops",
+      "reminder": "Favor one helpful feedback cycle over a large hidden pipeline.",
+      "useWhen": "Use this when an automation starts to feel opaque."
+    },
+    {
+      "concept": "Visible state",
+      "reminder": "Show what the tool changed, what it skipped, and what still needs attention.",
+      "useWhen": "Use this when readers or operators must trust the outcome."
+    },
+    {
+      "concept": "Human exports",
+      "reminder": "Make saved data readable enough that a person can recover without the app.",
+      "useWhen": "Use this when local-first data may outlive the UI."
+    }
+  ],
+  "appendix": [
+    {
+      "title": "Automation heuristics",
+      "items": [
+        "Prefer local persistence when the workflow is personal and offline-friendly.",
+        "Show status before optimization so trust arrives before speed.",
+        "Keep schemas stable so saved work survives interface changes."
+      ]
+    },
+    {
+      "title": "Failure questions",
+      "items": [
+        "What happens if the tool cannot finish?",
+        "Can a human inspect the saved state?",
+        "Is the next repair step obvious from the interface?"
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "listen-before-build",
+      "title": "Listen before build",
+      "summary": "Automation stays calm when it starts by observing the work it will later support.",
+      "estimatedMinutes": 8,
+      "keyIdeas": ["Observe real work", "Name exceptions", "Model before automate"],
+      "connections": ["tiny-helpers", "calm-feedback"],
+      "mapPosition": { "x": 22, "y": 24 },
+      "sections": [
+        {
+          "id": "map-requests",
+          "heading": "Map the recurring requests",
+          "lede": "The best candidate for automation is not the loudest complaint but the repeatable request with a stable shape.",
+          "body": [
+            "When you watch a workflow before automating it, you notice which steps are durable and which ones change depending on context. That keeps the first helper small and useful.",
+            "For local tools, this also helps define the data shape you need to store. Stable structure is what makes offline recovery possible."
+          ],
+          "callout": {
+            "label": "Pattern",
+            "tone": "insight",
+            "text": "Map the recurring request first, then automate the handoff around it."
+          },
+          "links": [
+            {
+              "label": "Design a tiny helper",
+              "targetChapterId": "tiny-helpers",
+              "targetSectionId": "start-local",
+              "reason": "Observed patterns are easier to support with a focused local tool."
+            }
+          ]
+        },
+        {
+          "id": "collect-exceptions",
+          "heading": "Collect the exceptions",
+          "lede": "Exceptions reveal the boundaries of a safe automation much faster than the happy path does.",
+          "body": [
+            "A workflow may look simple until you catalogue the moments where a person pauses, checks context, or makes a judgment call. Those are often the moments that deserve visibility rather than full automation.",
+            "Capturing exceptions early prevents the schema from becoming too optimistic and brittle."
+          ],
+          "links": [
+            {
+              "label": "Make status visible",
+              "targetChapterId": "calm-feedback",
+              "targetSectionId": "show-state",
+              "reason": "Exceptions are easier to manage when the interface reports them clearly."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tiny-helpers",
+      "title": "Tiny helpers",
+      "summary": "A quiet system usually starts as a narrow helper with a clear boundary.",
+      "estimatedMinutes": 9,
+      "keyIdeas": ["Keep scope narrow", "Start local", "Prefer reversible actions"],
+      "connections": ["listen-before-build", "calm-feedback", "stewarding"],
+      "mapPosition": { "x": 56, "y": 18 },
+      "sections": [
+        {
+          "id": "start-local",
+          "heading": "Start with local persistence",
+          "lede": "A personal workflow often benefits more from durability than from synchronization.",
+          "body": [
+            "Local-first storage lets the tool keep context without asking the user to maintain accounts, permissions, or a remote service they do not really need.",
+            "This can be enough to support drafts, progress, bookmarks, and work queues while keeping the system easy to understand."
+          ],
+          "callout": {
+            "label": "Constraint",
+            "tone": "note",
+            "text": "Local-first does not mean throwaway. Exportable, stable data still matters."
+          },
+          "links": [
+            {
+              "label": "Keep exports human-readable",
+              "targetChapterId": "stewarding",
+              "targetSectionId": "human-exports",
+              "reason": "Local persistence is safer when the stored data can outlive the UI."
+            }
+          ]
+        },
+        {
+          "id": "name-thresholds",
+          "heading": "Name the thresholds",
+          "lede": "A helpful automation states what it will do automatically and what still needs review.",
+          "body": [
+            "Thresholds reduce surprise. They tell the user when the helper can proceed independently and when it should pause for human judgment.",
+            "This creates a calmer relationship with automation because the boundary is visible in advance."
+          ],
+          "links": [
+            {
+              "label": "Show the current state",
+              "targetChapterId": "calm-feedback",
+              "targetSectionId": "repair-paths",
+              "reason": "Thresholds become trustworthy when the repair path is visible too."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "calm-feedback",
+      "title": "Calm feedback",
+      "summary": "Users trust an automation when it reports state, next steps, and failures without drama.",
+      "estimatedMinutes": 8,
+      "keyIdeas": ["Show current state", "Explain failures", "Preserve trust"],
+      "connections": ["listen-before-build", "tiny-helpers", "stewarding"],
+      "mapPosition": { "x": 34, "y": 68 },
+      "sections": [
+        {
+          "id": "show-state",
+          "heading": "Show state, not mystery",
+          "lede": "Status should answer what changed, what is pending, and what the user can do next.",
+          "body": [
+            "A calm interface does not bury the work inside a spinner or a vague success message. It explains enough that the person can decide whether to trust the result.",
+            "For local-first systems, this also makes refresh and recovery gentler because the important state is already visible on the surface."
+          ],
+          "callout": {
+            "label": "UX cue",
+            "tone": "insight",
+            "text": "Visible state lowers anxiety more effectively than celebratory animation."
+          },
+          "links": [
+            {
+              "label": "Review the observed exceptions",
+              "targetChapterId": "listen-before-build",
+              "targetSectionId": "collect-exceptions",
+              "reason": "Status is most helpful when it mirrors the real exceptions in the workflow."
+            }
+          ]
+        },
+        {
+          "id": "repair-paths",
+          "heading": "Make repair paths obvious",
+          "lede": "Every failure message should imply a next step instead of ending the workflow.",
+          "body": [
+            "The user needs to know whether to retry, inspect data, adjust an input, or accept partial completion. Repair options are part of the interface, not an afterthought.",
+            "This is especially important when no backend exists, because the user and the app are sharing the same device-level context."
+          ],
+          "links": [
+            {
+              "label": "Steward the saved data",
+              "targetChapterId": "stewarding",
+              "targetSectionId": "schema-evolution",
+              "reason": "Repair gets easier when the underlying state is stable and inspectable."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stewarding",
+      "title": "Stewarding local systems",
+      "summary": "Local-first tools stay healthy when their saved data remains legible and stable over time.",
+      "estimatedMinutes": 11,
+      "keyIdeas": ["Readable exports", "Stable schemas", "Long-lived local data"],
+      "connections": ["tiny-helpers", "calm-feedback"],
+      "mapPosition": { "x": 74, "y": 64 },
+      "sections": [
+        {
+          "id": "human-exports",
+          "heading": "Keep exports human-readable",
+          "lede": "A local system becomes safer when a person can inspect the saved state without the full interface.",
+          "body": [
+            "Readable JSON makes debugging, migration, and recovery less fragile. It also makes AI-assisted generation easier because the structure stays explicit.",
+            "This is one reason schemas matter even for small personal PWAs: they make change safer."
+          ],
+          "callout": {
+            "label": "Rule",
+            "tone": "note",
+            "text": "If a saved file cannot be understood by a person, future maintenance becomes much harder."
+          },
+          "links": [
+            {
+              "label": "Revisit local persistence",
+              "targetChapterId": "tiny-helpers",
+              "targetSectionId": "start-local",
+              "reason": "Readable exports make local-first storage more durable."
+            }
+          ]
+        },
+        {
+          "id": "schema-evolution",
+          "heading": "Evolve the schema carefully",
+          "lede": "Stable IDs and predictable shapes are the quiet infrastructure behind trustworthy local tools.",
+          "body": [
+            "When a schema changes abruptly, saved progress and bookmarks often break first. Small, additive changes preserve continuity for the user.",
+            "Treat the schema as part of the product experience: it shapes whether the tool feels dependable across versions."
+          ],
+          "links": [
+            {
+              "label": "Return to feedback design",
+              "targetChapterId": "calm-feedback",
+              "targetSectionId": "show-state",
+              "reason": "Schema changes should remain visible and understandable from the interface."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

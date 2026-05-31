@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bookscape.local/schemas/interactive-book.schema.json",
+  "title": "Bookscape Interactive Book",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "subtitle",
+    "description",
+    "coverEmoji",
+    "durationMinutes",
+    "tags",
+    "theme",
+    "cheatSheet",
+    "appendix",
+    "chapters"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "subtitle": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "coverEmoji": { "type": "string", "minLength": 1 },
+    "durationMinutes": { "type": "number", "minimum": 1 },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "theme": { "$ref": "#/$defs/theme" },
+    "cheatSheet": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cheatSheetEntry" },
+      "minItems": 1
+    },
+    "appendix": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/appendixGroup" },
+      "minItems": 1
+    },
+    "chapters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/chapter" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accent", "surface", "glow", "text"],
+      "properties": {
+        "accent": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string", "minLength": 1 },
+        "glow": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+    "cheatSheetEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concept", "reminder", "useWhen"],
+      "properties": {
+        "concept": { "type": "string", "minLength": 1 },
+        "reminder": { "type": "string", "minLength": 1 },
+        "useWhen": { "type": "string", "minLength": 1 }
+      }
+    },
+    "appendixGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "items"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "items": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "callout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "tone", "text"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "tone": {
+          "type": "string",
+          "enum": ["note", "insight", "warning"]
+        },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sectionLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "targetChapterId", "reason"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "targetChapterId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "targetSectionId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "heading", "lede", "body", "links"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "heading": { "type": "string", "minLength": 1 },
+        "lede": { "type": "string", "minLength": 1 },
+        "body": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "callout": { "$ref": "#/$defs/callout" },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sectionLink" }
+        }
+      }
+    },
+    "mapPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 100 },
+        "y": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "chapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "summary",
+        "estimatedMinutes",
+        "keyIdeas",
+        "connections",
+        "mapPosition",
+        "sections"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "estimatedMinutes": { "type": "number", "minimum": 1 },
+        "keyIdeas": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "mapPosition": { "$ref": "#/$defs/mapPosition" },
+        "sections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/section" },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}

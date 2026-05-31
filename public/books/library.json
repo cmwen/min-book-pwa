@@ -1,0 +1,52 @@
+[
+  {
+    "id": "atlas-of-adaptive-reading",
+    "title": "Atlas of Adaptive Reading",
+    "subtitle": "A handbook for moving through idea webs instead of static pages",
+    "description": "A sample AI-generated book about designing nonlinear reading flows, chapter maps, and recall layers for knowledge-heavy content.",
+    "coverEmoji": "🧭",
+    "durationMinutes": 42,
+    "tags": [
+      "Reader UX",
+      "Knowledge graph",
+      "Recall loops"
+    ],
+    "file": "books/atlas-of-adaptive-reading.json",
+    "accent": "#8b5cf6",
+    "surface": "#160f2b"
+  },
+  {
+    "id": "field-guide-to-quiet-automation",
+    "title": "Field Guide to Quiet Automation",
+    "subtitle": "Small local systems that help without taking over",
+    "description": "A second sample book focused on lightweight automation patterns, visible feedback, and keeping local tools understandable.",
+    "coverEmoji": "🌿",
+    "durationMinutes": 36,
+    "tags": [
+      "Automation",
+      "Local-first",
+      "Systems thinking"
+    ],
+    "file": "books/field-guide-to-quiet-automation.json",
+    "accent": "#22c55e",
+    "surface": "#0f1f1a"
+  },
+  {
+    "id": "fundamentals-of-llms",
+    "title": "The Fundamentals of LLMs",
+    "subtitle": "From everyday intuition to production systems",
+    "description": "A production-minded field guide to large language models, spanning intuition, prompting, retrieval, evaluation, and safety.",
+    "coverEmoji": "🧠",
+    "durationMinutes": 149,
+    "tags": [
+      "AI literacy",
+      "LLMs",
+      "Prompting",
+      "RAG",
+      "AI engineering"
+    ],
+    "file": "books/fundamentals-of-llms.json",
+    "accent": "#38bdf8",
+    "surface": "#0b1324"
+  }
+]
