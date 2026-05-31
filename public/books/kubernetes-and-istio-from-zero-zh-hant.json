@@ -1,0 +1,1353 @@
+{
+  "id": "kubernetes-and-istio-from-zero-zh-hant",
+  "title": "從零開始理解 Kubernetes 與 Istio",
+  "subtitle": "為初學者設計、深入探索容器、叢集與服務網格營運",
+  "description": "為新手準備的實戰導讀，從第一原理出發，落腳於 Kubernetes 1.36.1 與 Istio 1.30.0 的現代化生產模式。",
+  "coverEmoji": "⎈",
+  "durationMinutes": 176,
+  "tags": [
+    "Kubernetes",
+    "Istio",
+    "容器",
+    "平台工程",
+    "服務網格"
+  ],
+  "theme": {
+    "accent": "#22d3ee",
+    "surface": "#071826",
+    "glow": "rgba(34, 211, 238, 0.32)",
+    "text": "#effbff"
+  },
+  "cheatSheet": [
+    {
+      "concept": "Cluster（叢集）",
+      "reminder": "Kubernetes 叢集由 control plane 與 worker nodes 組成，會持續讓宣告狀態與實際狀態保持一致。",
+      "useWhen": "當有人把 Kubernetes 說成是一個要手動登入後逐項調整的地方時，就拿這個概念來校正。"
+    },
+    {
+      "concept": "Pod",
+      "reminder": "Pod 是最小的可部署單位，通常包住一個主要 container，以及它所需的執行環境脈絡。",
+      "useWhen": "當你在追蹤 container 在 Kubernetes 裡實際落在哪裡執行時。"
+    },
+    {
+      "concept": "Deployment",
+      "reminder": "Deployment 透過管理 ReplicaSets，讓 rollout、rollback 與 replica 數量調整都維持宣告式。",
+      "useWhen": "當應用是無狀態，且你需要安全的 rolling update 時。"
+    },
+    {
+      "concept": "Service",
+      "reminder": "Service 會給 Pods 一個穩定的虛擬身分，即使背後的 Pod IP 持續變動也是如此。",
+      "useWhen": "當一個工作負載必須呼叫另一個工作負載，但不想在乎究竟是哪個 replica 回應時。"
+    },
+    {
+      "concept": "ConfigMap 與 Secret",
+      "reminder": "ConfigMap 存放不敏感的設定；Secret 存放敏感值，但仍需要謹慎的傳遞方式與存取控制。",
+      "useWhen": "當你在判斷環境變數、憑證與證書該放在哪裡時。"
+    },
+    {
+      "concept": "Requests 與 limits",
+      "reminder": "Requests 影響排程與自動擴縮訊號；limits 則設定上限，可能觸發 throttling 或 OOM kill。",
+      "useWhen": "當 Pods 在開發環境運作正常，但在共享的 production 負載下表現很差時。"
+    },
+    {
+      "concept": "ServiceAccount",
+      "reminder": "ServiceAccount 是 Kubernetes 向 API 與其他系統呈現的工作負載身分。",
+      "useWhen": "當你在決定 Pod 可以讀取、寫入或冒用哪些資源與身分時。"
+    },
+    {
+      "concept": "Istio mTLS",
+      "reminder": "雙向 TLS 會加密 service-to-service 流量，並把身分綁定在工作負載證書上，而不是 IP 位址。",
+      "useWhen": "當網路被過度信任，或服務身分界線不清楚時。"
+    },
+    {
+      "concept": "sidecar 與 ambient",
+      "reminder": "sidecar 會為每個 Pod 附上一個 proxy；ambient mode 則把網格的一部分移到共享的節點層或 waypoint 層。",
+      "useWhen": "當你在評估網格成本、營運複雜度與功能深度時。"
+    },
+    {
+      "concept": "Revisions（版本修訂）",
+      "reminder": "Kubernetes 與 Istio 升級在舊版與新版 control plane 可於遷移期間並行運作時，通常會安全得多。",
+      "useWhen": "當你在規劃叢集或服務網格升級，而且不想以一次性切換的方式冒險時。"
+    }
+  ],
+  "appendix": [
+    {
+      "title": "本書採用的版本基線",
+      "items": [
+        "Kubernetes 基線：1.36.1，於 2026-05-13 發布、仍在積極支援中的 1.36 patch 版本。",
+        "Istio 基線：1.30.0，於 2026-05-18 發布的最新 Istio 版本。",
+        "Gateway API 被視為面向未來的南北向流量模型；Ingress 主要作為相容性與理解既有系統的背景知識。",
+        "Istio 內容同時假設傳統 sidecar mode 與 ambient mode 都值得理解，但不是每個工作負載都需要服務網格。"
+      ]
+    },
+    {
+      "title": "建議閱讀路線",
+      "items": [
+        "純新手路線：為什麼會有 Kubernetes -> 叢集內部 -> Pods、Deployments 與批次工作 -> 網路、Services 與 Gateway API。",
+        "應用擁有者路線：Pods、Deployments 與批次工作 -> 設定、儲存與狀態 -> 可觀測性與 day-2 營運。",
+        "平台路線：叢集內部 -> 安全、身分與政策 -> 可觀測性與 day-2 營運 -> 從第一原理理解 Istio 1.30。",
+        "服務網格路線：網路、Services 與 Gateway API -> 從第一原理理解 Istio 1.30 -> 流量管理、網格安全與 rollout 策略。"
+      ]
+    },
+    {
+      "title": "白話詞彙表",
+      "items": [
+        "Reconciliation：控制迴路偵測漂移，並把叢集推回已宣告目標狀態的過程。",
+        "ReplicaSet：維持指定數量且符合條件的 Pods 持續運作的物件。",
+        "CNI：container network interface，為 Pods 提供網路能力的外掛層。",
+        "CSI：container storage interface，把儲存系統接到 Kubernetes 上的外掛層。",
+        "Gateway API：較新的 Kubernetes API 家族，用來表達流量入口與路由，其表達能力比傳統 Ingress 更完整。",
+        "Sidecar proxy：與應用 container 一起運行在同一個 Pod 內的網路 proxy 行程。",
+        "Waypoint proxy：ambient mode 中代表一組工作負載處理政策或 L7 流量的 proxy。"
+      ]
+    },
+    {
+      "title": "值得養成的指令習慣",
+      "items": [
+        "先讀後改：get、describe、logs 與 events 通常比第一次重啟嘗試更能說明問題。",
+        "一切都要明確限定範圍：帶上 namespace 與 label selectors，才能確保你正在除錯的是你以為的那個工作負載。",
+        "檢查 rollout 狀態：rollout status 與 rollout history 會告訴你問題是 image、config、readiness 還是容量。",
+        "比對期望與現況：manifests、live objects 與 events 放在一起看，才能判斷錯誤是出在撰寫、排程、網路還是政策。"
+      ]
+    },
+    {
+      "title": "生產環境經驗法則",
+      "items": [
+        "在導入服務網格之前，先熟悉原生 Kubernetes 網路，這樣額外價值才會清楚，而不是像魔法。",
+        "把 Secrets 與證書視為傳遞管線，而不是僅僅躺在 etcd 裡的物件。",
+        "定期做還原演練；從未還原過的備份，只是一份充滿期待的封存。",
+        "相較於原地大爆炸升級，優先選擇漸進式交付與 revisions。"
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "why-kubernetes-exists",
+      "title": "為什麼會有 Kubernetes",
+      "summary": "本章先建立第一個心智模型：Kubernetes 是一套用來可靠執行大量容器的控制系統，不是把單一行程啟動方式搞得更複雜。",
+      "estimatedMinutes": 16,
+      "keyIdeas": [
+        "當你需要可重複的部署、復原、擴縮，以及可供團隊安全協作的多服務營運方式時，Kubernetes 才真正發揮價值。",
+        "叢集的運作方式是持續調和已宣告狀態，而不是永遠重播某份人工腳本。",
+        "Pod、Deployment、Service 這些物件，本質上都是系統努力維持為真的契約。",
+        "Kubernetes 1.36.1 之所以重要，主要在於支援性、更成熟的 API 與更清晰的升級預期，而不是要初學者一次學會所有新功能。"
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "pods-deployments-and-batch-work",
+        "networking-services-and-gateway-api"
+      ],
+      "mapPosition": {
+        "x": 12,
+        "y": 18
+      },
+      "sections": [
+        {
+          "id": "containers-to-control-loops",
+          "heading": "從單一容器到活的工作負載群",
+          "lede": "啟動一個容器很容易，但一旦變成一整群容器，還沒成為技術展示之前，就先變成可靠性問題。",
+          "body": [
+            "筆電上的工作流程通常假設只有一台機器、一個執行環境，還有一個會注意失敗的人。Production 不是這樣。機器會重啟、磁碟會塞滿、節點會消失，需求也會在一天之內移動。Kubernetes 的存在，就是把這些事件從緊急狀況轉成可預期的操作條件。",
+            "真正的轉變在於：你不再以啟動某個行程來思考，而是以表達意圖來思考。你不是說現在立刻執行這條命令，而是說請維持三個健康副本可用、透過穩定名稱對外提供，並在失敗時自動重啟。"
+          ],
+          "callout": {
+            "label": "第一個定錨點",
+            "tone": "insight",
+            "text": "當你需要一個系統替你持續兌現承諾時，Kubernetes 最有價值。"
+          },
+          "links": [
+            {
+              "label": "看看這些承諾在哪裡被執行",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "api-server-and-etcd",
+              "reason": "control plane 負責儲存意圖，並對漂移做出反應。"
+            },
+            {
+              "label": "跳到工作負載的基本單位",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "Pod 是把這些承諾落實到節點上的具體執行單位。"
+            }
+          ]
+        },
+        {
+          "id": "desired-state-and-reconciliation",
+          "heading": "期望狀態與 reconciliation",
+          "lede": "一旦你把 Kubernetes 看成一組持續比較「應該存在什麼」與「實際存在什麼」的迴路，它就容易理解得多。",
+          "body": [
+            "你提交一個宣告目標狀態的物件。Controllers 隨後監看 API，比較實際狀況與目標之間的差距，並持續建立或移除其他物件，直到差距縮小。若某個 Pod 掛掉，系統會發現少了一個副本並補上一個；若你變更期望的 image，rollout 機制就會逐步用新 Pod 取代舊 Pod。",
+            "這就是為什麼平台是宣告式而不是命令式。你不需要在腦中背下每個操作步驟，而是定義終局條件，讓 controllers 朝那個條件收斂。當某件事看起來很神祕時，先問是哪個 controller 擁有它，以及它依據的真實來源是什麼。"
+          ],
+          "callout": {
+            "label": "心智模型",
+            "tone": "note",
+            "text": "叢集是一組控制迴路，不是一個巨大的腳本執行器。"
+          },
+          "links": [
+            {
+              "label": "直接認識 controllers",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "當你研究 scheduler 與 controller manager 時，reconciliation 這個概念會變得具體。"
+            },
+            {
+              "label": "看看 rollout 時相同模式如何出現",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Deployment 是初學者最容易看到 reconciliation 實際運作的例子之一。"
+            }
+          ]
+        },
+        {
+          "id": "api-objects-and-metadata",
+          "heading": "物件、labels 與 metadata",
+          "lede": "Kubernetes 是 API-first 的系統，這表示你碰到的幾乎每件事，都是帶有 metadata、期望狀態與觀察狀態的物件。",
+          "body": [
+            "Manifest 只是把某個物件告訴 API 的方式。metadata 區塊給它名稱、namespace 與 labels。Labels 尤其重要，因為它們讓其他物件可以指向一整群會變動的實體，而不是脆弱的單一實例。Service 不會逐一追蹤 Pod 名稱；它是用 label 去選 Pods。",
+            "這種物件模型讓 Kubernetes 具備可組合性。某個物件可以描述工作負載，另一個描述網路存取，另一個綁定儲存，再另一個編碼政策。當你學會讀 metadata 與 selectors 之後，這個平台就不再像一袋互不相關的特例。"
+          ],
+          "callout": {
+            "label": "設計習慣",
+            "tone": "insight",
+            "text": "Labels 是獨立 Kubernetes 物件在不硬編碼實例名稱的情況下彼此發現的方式。"
+          },
+          "links": [
+            {
+              "label": "看看 selectors 如何驅動發現",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "Service 很大程度依賴 selectors 與 labels 來路由流量。"
+            },
+            {
+              "label": "看看 metadata 如何連到身分",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "安全政策同樣依賴名稱、namespace、labels 與工作負載身分。"
+            }
+          ]
+        },
+        {
+          "id": "kubernetes-1-36-baseline",
+          "heading": "Kubernetes 1.36 基線對初學者意味著什麼",
+          "lede": "對新的操作者而言，Kubernetes 1.36.1 最重要的意義，是你學的是仍在積極支援的當代基線，而不是一套遺留習慣。",
+          "body": [
+            "使用當前 release 線，代表你接觸到的是更新的預設值、更少的歷史陷阱，以及與生態系實際討論內容一致的文件。你不需要背下每個 1.36 功能；但你必須理解版本偏差、API 成熟度與支援週期，都是負責任營運叢集的一部分。",
+            "以 1.36.1 學習，也會自然引導你接觸 Gateway API、最新安全指引與更乾淨的升級做法。對初學者最安全的立場，是優先使用穩定 API、在升級時閱讀棄用說明，並把舊部落格文章視為歷史背景，而不是真理本身。"
+          ],
+          "callout": {
+            "label": "版本立場",
+            "tone": "warning",
+            "text": "在不知道某份 Kubernetes 教學假設的版本與 API 成熟度之前，不要直接照抄。"
+          },
+          "links": [
+            {
+              "label": "了解升級規則",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "version-skew-and-upgrades",
+              "reason": "版本偏差規則解釋了當前叢集如何安全升級。"
+            },
+            {
+              "label": "看看流量 API 的演進方向",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "gateway-api-and-ingress",
+              "reason": "Gateway API 是 Kubernetes 介面現代化方向的典型例子。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inside-the-cluster",
+      "title": "叢集內部",
+      "summary": "本章打開 control plane 與 worker node 的黑盒子，讓 Kubernetes 的其他部分不再像魔法。",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "API server 是前門，etcd 是儲存叢集狀態的持久化存放處。",
+        "Scheduler 與 controllers 會把期望狀態轉成真正運行中的資源。",
+        "Kubelet、CNI、CSI 與 container runtime 是節點端把 Pod 變成現實的機制。",
+        "版本偏差政策之所以重要，是因為叢集是分散式系統，而不是一個可以孤立替換的單一 binary。"
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "pods-deployments-and-batch-work",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 33,
+        "y": 10
+      },
+      "sections": [
+        {
+          "id": "api-server-and-etcd",
+          "heading": "API server 與 etcd",
+          "lede": "如果 Kubernetes 有重力中心，那就是由 etcd 支撐、負責讀寫狀態的 API server。",
+          "body": [
+            "任何有意義的叢集動作都會流經 API server。無論是你 apply manifest、controller 更新 status，還是節點回報健康狀態，API 都是契約交會點。這也是為什麼權限、audit logs、admission checks 與自動化擴充，通常都圍繞 API 而不是繞過它。",
+            "Etcd 是這份契約背後的耐久儲存。它保存叢集最新接受的狀態。初學者不需要第一天就成為分散式資料庫專家，但至少要理解：遺失 etcd 或把它弄壞，遠比失去一個 worker node 嚴重。"
+          ],
+          "callout": {
+            "label": "核心事實",
+            "tone": "insight",
+            "text": "API 是真實來源；Kubernetes 的其他部分都對它做出反應。"
+          },
+          "links": [
+            {
+              "label": "回到最初的問題",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "desired-state-and-reconciliation",
+              "reason": "Reconciliation 能成立，是因為所有參與者都在讀同一份共享狀態。"
+            },
+            {
+              "label": "看看為什麼備份紀律重要",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "day-2 的復原規劃，永遠必須尊重叢集狀態實際存放的位置。"
+            }
+          ]
+        },
+        {
+          "id": "scheduler-and-controllers",
+          "heading": "Scheduler 與 controllers 負責推動系統",
+          "lede": "API 負責儲存意圖，但真正把意圖變成動作的是 scheduler 與 controllers。",
+          "body": [
+            "Scheduler 會根據 requests、constraints、affinity 規則、taints 與其他訊號，決定 Pod 應該跑在哪裡。Controller manager 則執行許多控制迴路，每個迴路各自負責一部分行為，例如維持副本數、掛載 volume，或對節點變化作出反應。這種分工讓平台保持模組化，而不是變成單體巨獸。",
+            "一個很有用的除錯習慣，是不要把 Kubernetes 當成一團無差別的黑箱。先問問題是出在排程、某個 controller 正在等待條件、節點 agent 失敗，還是外部相依性。這個問題通常能大幅縮小搜尋空間。"
+          ],
+          "callout": {
+            "label": "除錯提示",
+            "tone": "note",
+            "text": "當某件事卡住時，先找出下一步動作屬於哪個控制迴路。"
+          },
+          "links": [
+            {
+              "label": "看看排程如何遇上資源",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "probes-resources-and-evictions",
+              "reason": "資源 requests 與 limits 會同時影響 scheduler 的選擇與執行期行為。"
+            },
+            {
+              "label": "透過 events 觀看控制迴路",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "Events 是觀察 controllers 解釋自己在做什麼的最佳方式之一。"
+            }
+          ]
+        },
+        {
+          "id": "node-agents-and-plugins",
+          "heading": "Kubelet、runtime、CNI 與 CSI",
+          "lede": "在 worker nodes 上，抽象的物件模型才真正變成帶有網路與儲存的執行中程序。",
+          "body": [
+            "Kubelet 監看被指派到自己節點的 Pods，並與 container runtime 協作啟動或停止 containers。網路外掛通常透過 CNI 提供 Pod networking；儲存外掛通常透過 CSI 掛載或附加所需儲存。它們共同讓節點在你的應用下方看起來像一個小型作業平台。",
+            "這也是為什麼叢集問題常常跨越多個層次。即使 Deployment 正確，Pod 仍可能因 image 拉不下來、節點在壓力下驅逐工作負載、CNI 不健康，或 volume 無法附加而失敗。Manifest 只是故事的一部分。"
+          ],
+          "callout": {
+            "label": "邊界",
+            "tone": "warning",
+            "text": "合法的 manifest，不代表被選中的節點上就一定有合法的執行環境。"
+          },
+          "links": [
+            {
+              "label": "追蹤儲存如何從 API 走到節點",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "persistent-volumes-and-claims",
+              "reason": "當你看見節點上的 CSI 層之後，Persistent Volume 的行為會更容易理解。"
+            },
+            {
+              "label": "追蹤流量如何從網路外掛走到 Service",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "flat-network-model",
+              "reason": "Pod 網路模型從節點開始，向上延伸成整個叢集網路。"
+            }
+          ]
+        },
+        {
+          "id": "version-skew-and-upgrades",
+          "heading": "版本偏差與叢集升級",
+          "lede": "安全升級 Kubernetes，意味著要尊重叢集不同元件可以短暫運行不同版本，但只能落在支援的版本偏差規則內。",
+          "body": [
+            "Control-plane 元件、kubelets 與 clients 不會在同一瞬間一起跳版。專案文件清楚列出哪些組合受到支援，才能讓升級維持可預期。對初學者來說，操作上的教訓很簡單：在安排維護前先讀版本偏差政策，不要假設最新 binary 永遠都能安全與所有舊版本對話。",
+            "現代升級比較不像英雄式救火，更像編排。依支援順序升級 control plane、漸進式輪替 worker nodes、觀察工作負載健康，並在維護窗口前而不是之後檢查 API 棄用情況。Kubernetes 1.36.1 是一個好的基線，正因為它落在當前支援窗口內。"
+          ],
+          "callout": {
+            "label": "營運習慣",
+            "tone": "insight",
+            "text": "用受支援的版本組合來思考升級，比只看一條叢集版本字串安全得多。"
+          },
+          "links": [
+            {
+              "label": "回到版本基線",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "kubernetes-1-36-baseline",
+              "reason": "1.36 基線的重要性，正在於支援性與可升級性本身就是產品的一部分。"
+            },
+            {
+              "label": "看看 Istio revisions 的相同模式",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "當你能讓多個 control-plane revisions 並行時，Istio 升級也會平靜得多。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pods-deployments-and-batch-work",
+      "title": "Pods、Deployments 與批次工作",
+      "summary": "本章把抽象的叢集概念，轉成應用團隊每天最常接觸的那些物件。",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Pod 是容器、網路與 volumes 的執行期包裝。",
+        "Deployment 透過管理 ReplicaSets 與 rollout 歷史，替無狀態應用帶來可重複性。",
+        "有限工作與定時工作，比起長時間運行的 Deployment，更適合交給 Job 與 CronJob。",
+        "Readiness、liveness、startup probes 與合理的資源設定，能讓工作負載在壓力下誠實反映狀態。"
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "inside-the-cluster",
+        "networking-services-and-gateway-api",
+        "configuration-storage-and-state",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 26,
+        "y": 36
+      },
+      "sections": [
+        {
+          "id": "pod-lifecycle",
+          "heading": "用白話理解 Pod 生命週期",
+          "lede": "Pod 是你的應用真正接觸叢集的地方，因此值得完整理解它從排程到終止的整段旅程。",
+          "body": [
+            "Pod 先以 API 物件的形式出現，被排到某個節點後，節點接著會拉 image、掛 volume、接通網路並啟動 containers。Readiness 與 startup 是不同概念：container 可能已經 running，但還沒準備好接流量。終止也不是瞬間事件：Kubernetes 會先送訊號，給 Pod 一段時間乾淨停機，之後才強制結束。",
+            "這個生命週期解釋了許多常見驚訝。如果 Pod 一直重啟，問題可能出在你的程序、probe 設定，或缺少某個依賴。如果流量始終進不來，Pod 可能尚未 ready；如果關閉時出錯，termination grace period 或連線 draining 時間可能太短。"
+          ],
+          "callout": {
+            "label": "初學者捷徑",
+            "tone": "insight",
+            "text": "Running 不等於 ready，而 ready 也不等於 healthy。"
+          },
+          "links": [
+            {
+              "label": "看看 Services 如何等待 readiness",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "流量挑選依賴的是 ready endpoints，而不只是 Pod 存在。"
+            },
+            {
+              "label": "看看生命週期證據會出現在哪裡",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "kubectl-debug-loop",
+              "reason": "基礎的 kubectl 除錯迴路，往往足以解釋 Pod 生命週期失敗。"
+            }
+          ]
+        },
+        {
+          "id": "deployments-and-rollouts",
+          "heading": "Deployments 與 rolling updates",
+          "lede": "Deployment 替無狀態 Pod 包裝出一套安全的更新故事，讓你不必為每個應用都重新發明 rollout 邏輯。",
+          "body": [
+            "Deployment 描述期望的 Pod 範本與副本數。底層它會建立 ReplicaSets，並依 rollout 設定逐步把流量從舊 Pod 轉到新 Pod。這讓你擁有 rollback 歷史、rollout 狀態，以及日常應用變更所需的穩定 controller。",
+            "更深一層的教訓是：Kubernetes 偏好以 replace-over-mutate 的方式工作。你不是手動修補正在運行的 container，而是發佈新的 image 或 config，再讓 Deployment 用新範本產生新的 Pods。這讓變更具備可稽核性與可重複性。"
+          ],
+          "callout": {
+            "label": "發版模式",
+            "tone": "note",
+            "text": "Deployment 透過從新範本建立新 Pods，而不是手改舊 Pod，讓變更更安全。"
+          },
+          "links": [
+            {
+              "label": "看看服務網格裡的漸進式交付",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "Istio 會在 Kubernetes 既有 rollout 機制之上，加上更細緻的流量控制。"
+            },
+            {
+              "label": "看看為什麼設定變更同樣重要",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "configmaps-and-secrets",
+              "reason": "一次 rollout 往往同時包含 image 變更與設定變更。"
+            }
+          ]
+        },
+        {
+          "id": "batch-and-scheduled-work",
+          "heading": "用 Job 與 CronJob 處理有限工作",
+          "lede": "不是每個工作負載都該成為永遠運行的 Deployment；有些工作應該完成後結束，有些則只該在排程時間啟動。",
+          "body": [
+            "Job 適合有完成條件的工作，例如資料庫 migration、報表產生，或清空佇列。CronJob 則是在時間表上排程 Job。它們的心智模型比較接近任務編排，而不是服務託管。成功代表工作做完後乾淨退出，而不是存活數月。",
+            "把服務型工作負載與批次型工作負載分開，對除錯與容量規劃都更有幫助。Migration job 對重啟、記錄與 timeout 的期待，和 Web API 完全不同。若把兩者視為同一件事，通常只會得到脆弱的發布管線。"
+          ],
+          "callout": {
+            "label": "工作負載適配",
+            "tone": "insight",
+            "text": "選擇控制器時，要看成功條件是否符合工作的形狀。"
+          },
+          "links": [
+            {
+              "label": "看看持久狀態變更何時重要",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "backing-up-and-moving-state",
+              "reason": "批次工作常會碰觸已儲存資料，因此復原與 migration 規劃很重要。"
+            },
+            {
+              "label": "看看如何觀察一次性工作",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "批次失敗通常最容易從 logs、events 與 exit status 理解。"
+            }
+          ]
+        },
+        {
+          "id": "probes-resources-and-evictions",
+          "heading": "Probes、資源與驅逐",
+          "lede": "一個工作負載有多適合 production，取決於它的健康檢查與資源假設是否合理。",
+          "body": [
+            "Startup、readiness 與 liveness probes 回答的是不同問題。Startup 保護啟動緩慢的應用不會太早被殺掉；readiness 表示現在是否該導入流量；liveness 則表示相較於繼續等待，重啟是否更安全。Requests 告訴 scheduler 需要預留多少容量；limits 則是 runtime 可能強制執行的硬上限。",
+            "節點壓力與驅逐，就是不切實際設定被懲罰的地方。資源配置過低的 Pods 可能被塞得太密，在流量上來後失敗；limits 設得太緊，可能造成 throttling 或記憶體被殺。把這些值設對，不是微調瑣事，而是工作負載正確性的一部分。"
+          ],
+          "callout": {
+            "label": "可靠性規則",
+            "tone": "warning",
+            "text": "錯誤的健康檢查會讓健康的應用看起來像生病，錯誤的資源設定也會讓健康的節點表現失常。"
+          },
+          "links": [
+            {
+              "label": "看看排程後果",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "Requests 與 constraints 會直接塑造排程行為。"
+            },
+            {
+              "label": "看看自動擴縮如何依賴可靠訊號",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "autoscaling-and-capacity",
+              "reason": "當基礎 requests 與 readiness 訊號可信時，自動擴縮才會表現更好。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "networking-services-and-gateway-api",
+      "title": "網路、Services 與 Gateway API",
+      "summary": "本章說明流量在 Kubernetes 中如何真正到達工作負載，並把這個理解延伸到 Istio 所擴充的部位。",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Kubernetes 預設大致採用扁平的 Pod 網路模型，每個 Pod 都有自己的 IP。",
+        "Service 在會變動的 Pods 之上，提供穩定的發現機制與負載平衡。",
+        "Gateway API 是以 Kubernetes 原生方式建模南北向流量與路由政策的現代介面。",
+        "Istio 建立在你原本就有的流量路徑上；它不會取代你理解基礎叢集網路的必要。"
+      ],
+      "connections": [
+        "why-kubernetes-exists",
+        "pods-deployments-and-batch-work",
+        "configuration-storage-and-state",
+        "security-identity-and-policy",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 50,
+        "y": 28
+      },
+      "sections": [
+        {
+          "id": "flat-network-model",
+          "heading": "扁平的 Pod 網路模型",
+          "lede": "只要先接受一個前提：Pods 應該能彼此直接連通，Kubernetes 網路就沒那麼神祕。",
+          "body": [
+            "常見模型是每個 Pod 都拿到自己的 IP，並能在叢集內不靠 NAT 技巧直接和其他 Pods 通訊。這不代表每個 Pod 都應該被允許和所有 Pod 對話；而是說網路模型起點偏向開放，政策是在之後再疊上去。這也是為什麼網路外掛如此重要：它們在實作平台的核心假設。",
+            "對初學者而言，關鍵教訓是：流量通常先在 Pod 與 Pod 之間流動，之後才由 Service 與更高層加入轉接、穩定性與政策。若 Pod 網路壞了，再高層的抽象也救不了你。"
+          ],
+          "callout": {
+            "label": "地面真相",
+            "tone": "insight",
+            "text": "Service 會整理流量，但最基本的網路路徑仍然仰賴 Pods 能在叢集網路中彼此到達。"
+          },
+          "links": [
+            {
+              "label": "看看節點端如何實作",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "node-agents-and-plugins",
+              "reason": "CNI 就是把 Pod 網路模型在每個節點上落實成具體行為的那一層。"
+            },
+            {
+              "label": "在這個網路之上加上政策",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "policy-stacks-across-cluster-and-mesh",
+              "reason": "當基本網路模型清楚後，NetworkPolicy 與 mesh policy 都會更容易推理。"
+            }
+          ]
+        },
+        {
+          "id": "services-dns-and-discovery",
+          "heading": "Services、endpoints 與 DNS 發現",
+          "lede": "Service 為不穩定的 Pods 提供穩定前門，讓客戶端依賴名稱，而不是會變動的 IP 位址。",
+          "body": [
+            "Service 透過 label 選取 Pods，並提供穩定的虛擬 IP 與 DNS 名稱。隨著 Pods 出現或消失，Service 會更新背後的 endpoints。這讓呼叫端可以尋找像 checkout-api 這樣的一類工作負載，而不必在意現在究竟是哪個 replica 存在。這裡 readiness 很重要，因為只有 ready endpoints 才應該接收正常流量。",
+            "這個設計解決了一個深層的營運問題：底下工作負載可以持續變形，但它的消費者仍呼叫同一個邏輯名稱。一旦你理解 Service，很多 Kubernetes 網路行為看起來就像被精心管理的間接層，而不是隨機複雜度。"
+          ],
+          "callout": {
+            "label": "核心抽象",
+            "tone": "note",
+            "text": "在 Pods 被設計成可隨時替換的世界裡，Service 讓位址穩定下來。"
+          },
+          "links": [
+            {
+              "label": "回到 Pod readiness",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "Service 會依據 Pod readiness 判斷哪些 endpoints 應該接收流量。"
+            },
+            {
+              "label": "看看 Istio 如何疊上更豐富的路由",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "Istio 路由是建立在穩定的 service identity 之上，而不是繞過它們。"
+            }
+          ]
+        },
+        {
+          "id": "gateway-api-and-ingress",
+          "heading": "Gateway API，以及作為背景知識的 Ingress",
+          "lede": "Ingress 仍然常見，但在 Kubernetes 中表達流量入口與路由角色，Gateway API 是更乾淨的現代介面。",
+          "body": [
+            "傳統 Ingress 把很多關注點擠進同一種資源。Gateway API 則把問題拆成更清楚的部分，例如 GatewayClass、Gateway 與 route resources。這種分離讓政策擁有權與附掛關係更明確，對大型團隊或共享平台尤其有幫助。",
+            "對初學者來說，實際重點不是 Ingress 一夕之間失去價值，而是新的平台設計愈來愈以 Gateway API 為中心，因為它更乾淨地表達意圖，也為更豐富的實作留下空間，包括服務網格整合。"
+          ],
+          "callout": {
+            "label": "現代預設",
+            "tone": "insight",
+            "text": "學 Ingress 是為了看懂舊系統；學 Gateway API 則是為了面向未來的設計。"
+          },
+          "links": [
+            {
+              "label": "看看 Istio 也如何使用 gateways",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "Istio 的安裝選擇常包含專用 ingress gateway 或 waypoint gateway 佈局。"
+            },
+            {
+              "label": "看看流量政策如何繼續加深",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "當你熟悉南北向模型後，就更容易評估 Istio 的路由資源。"
+            }
+          ]
+        },
+        {
+          "id": "traffic-path-before-istio",
+          "heading": "加入服務網格之前的流量路徑",
+          "lede": "在採用 Istio 之前，你應該先理解原生 Kubernetes 的流量路徑，否則服務網格只會像來路不明的魔法。",
+          "body": [
+            "沒有 mesh 時，流量通常會從 client 進到 Service，再到其中一個被選中的 ready Pod，途中常經過 kube-proxy 或等價的 dataplane 實作。對 ingress 流量來說，gateway 或 ingress controller 會接受外部請求，再轉送進叢集中的 Services。這條路徑本身就已經包含 DNS、負載平衡、TLS 決策與失敗處理。",
+            "Istio 會把政策、安全、遙測與更豐富的路由加到這條路徑上，但它不會廢除基本原理。若 DNS 錯了、Service 選錯 Pod，或應用根本還沒 ready，mesh 也無法把混亂變成可靠性。"
+          ],
+          "callout": {
+            "label": "採用規則",
+            "tone": "warning",
+            "text": "服務網格會放大一個能運作的平台；它不會取代你先把平台做好。"
+          },
+          "links": [
+            {
+              "label": "走進服務網格的心智模型",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "why-a-service-mesh",
+              "reason": "只有在基本路徑清楚之後，才能判斷 service mesh 的價值。"
+            },
+            {
+              "label": "看看可靠性如何被明確化",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "resilience-with-timeouts-retries-and-outliers",
+              "reason": "Istio 讓你把原本埋在 clients 或 gateways 裡的流量行為，正式編碼成政策。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "configuration-storage-and-state",
+      "title": "設定、儲存與狀態",
+      "summary": "本章說明 Kubernetes 如何把可替換的運算資源，與不可輕忽的設定與持久資料區分開來。",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "設定變更應該明確、可審查，且在合適時與 container images 分離。",
+        "Persistent volumes 讓儲存壽命可以長於單一 Pod。",
+        "StatefulSet 提供 Deployment 不保證的有序身分與穩定儲存語意。",
+        "從工作負載開始承載重要狀態的那一刻起，備份、還原與 migration 路徑就已經重要。"
+      ],
+      "connections": [
+        "pods-deployments-and-batch-work",
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations"
+      ],
+      "mapPosition": {
+        "x": 20,
+        "y": 63
+      },
+      "sections": [
+        {
+          "id": "configmaps-and-secrets",
+          "heading": "ConfigMaps 與 Secrets",
+          "lede": "Kubernetes 為外部化設定提供專門的物件型別，因為把每個設定都烤進 image 很快就會變得痛苦。",
+          "body": [
+            "ConfigMap 用來放不敏感的設定，例如 feature flags、endpoints 或調校值；Secret 則放敏感資料，例如憑證、金鑰或 token。兩者都可以掛成檔案或暴露成環境變數，但因風險輪廓不同，它們應該採用不同的存取模式與審查標準。",
+            "更深的教訓是：設定本身就是部署行為的一部分，不是旁枝末節。若設定變更不可見、沒有版本或在環境間手動複製，故障就會更難解釋。好的平台團隊會把設定變更做得和程式碼變更一樣審慎。"
+          ],
+          "callout": {
+            "label": "實務邊界",
+            "tone": "note",
+            "text": "ConfigMap 與 Secret 的差別，不只在語法，而在於誰能讀、如何輪替，以及如何稽核這個值。"
+          },
+          "links": [
+            {
+              "label": "把設定連回 rollout 行為",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "設定變更往往和 image 變更一樣，需要同等級的 rollout 照顧。"
+            },
+            {
+              "label": "把 secrets 連到身分與存取",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "secret-delivery-and-supply-chain",
+              "reason": "當 Secret 傳遞綁定工作負載身分與受控管線時，整個流程會安全得多。"
+            }
+          ]
+        },
+        {
+          "id": "persistent-volumes-and-claims",
+          "heading": "PersistentVolumes 與 PersistentVolumeClaims",
+          "lede": "持久儲存被建模成「需求與綁定」關係，讓工作負載可以提出儲存需求，而不必把自己永遠綁死在某一顆磁碟上。",
+          "body": [
+            "PersistentVolumeClaim 會表達工作負載所需的條件，例如大小與存取模式；PersistentVolume 則代表實際提供的儲存，不論是動態建立還是預先建立。這樣的分離，讓應用可以用可攜的方式請求儲存，同時讓儲存管理者保留對底層實作的控制。",
+            "初學者最常踩的陷阱，是以為 container 檔案系統具有持久性。通常不是。若資料在單一 Pod 壽命之外仍然重要，它就應該放在可附加或網路型儲存上，並且具備清楚的復原故事。"
+          ],
+          "callout": {
+            "label": "狀態規則",
+            "tone": "warning",
+            "text": "只要你在意資料是否能跨 Pod 重啟存活，你就已經進入持久儲存的領域。"
+          },
+          "links": [
+            {
+              "label": "看看底下的節點外掛層",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "node-agents-and-plugins",
+              "reason": "CSI 是 Kubernetes 儲存物件與實際儲存系統之間的橋樑。"
+            },
+            {
+              "label": "看看為什麼還原演練重要",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "沒有經過測試復原的持久儲存，仍然是脆弱設計。"
+            }
+          ]
+        },
+        {
+          "id": "statefulsets-and-ordered-identity",
+          "heading": "StatefulSet 與穩定身分",
+          "lede": "StatefulSet 的存在，是因為某些工作負載需要 Deployment 無法保證的穩定身分與有序行為。",
+          "body": [
+            "資料庫、broker 與依賴 quorum 的系統，常常在乎穩定名稱、有序啟動，以及綁定到特定 replica 的儲存。StatefulSet 提供可預期的 Pod 身分與 volume 關係，且在重新排程後仍能維持。它不是自動比 Deployment 更好；它只是為另一種工作負載真相而設計。",
+            "這對初學者很重要，因為選錯 controller 會掩蓋設計不匹配。若某個應用假設自己有持久身分，卻被當作可隨時替換的無狀態 Deployment 管理，症狀通常會在之後以資料混亂、叢集協調失敗或痛苦升級的形式出現。"
+          ],
+          "callout": {
+            "label": "控制器選擇",
+            "tone": "insight",
+            "text": "當身分與順序屬於正確性的一部分，而不只是便利性時，就該用 StatefulSet。"
+          },
+          "links": [
+            {
+              "label": "與 Deployment 對照",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "拿 Deployment 與 StatefulSet 的承諾相比，差異就會變得非常清楚。"
+            },
+            {
+              "label": "把它連到流量行為",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "穩定身分與穩定的 service discovery 往往需要一起設計。"
+            }
+          ]
+        },
+        {
+          "id": "backing-up-and-moving-state",
+          "heading": "安全備份與遷移狀態",
+          "lede": "只有當你知道如何復原、遷移，並冷靜地測試這些操作時，有狀態系統才算真正進入 production。",
+          "body": [
+            "備份不是單一技術。你可能需要應用一致性的 snapshots、資料庫原生 dump、物件儲存複寫，以及 metadata 擷取。重點不是一次蒐集所有備份技術，而是讓備份設計符合你的復原目標，以及你真正關心的失敗模式。",
+            "遷移同樣值得被嚴肅對待。把持久資料跨叢集、儲存類別或區域搬移時，隱藏假設最容易變得昂貴。初學者應及早學會：移動狀態是一個經過規劃的工程專案，不是最後一刻補上的 shell command。"
+          ],
+          "callout": {
+            "label": "現實檢查",
+            "tone": "warning",
+            "text": "從未在壓力下完成還原的備份，只是猜測，不是保證。"
+          },
+          "links": [
+            {
+              "label": "連回 day-2 演練",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "營運節奏正是讓備份理論變成真實復原實務的地方。"
+            },
+            {
+              "label": "連回批次 migration",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "batch-and-scheduled-work",
+              "reason": "Migration jobs 常仰賴健全的資料處理與 rollback 規劃。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "security-identity-and-policy",
+      "title": "安全、身分與政策",
+      "summary": "本章說明 Kubernetes 與 Istio 的安全層如何拼在一起，讓存取控制、工作負載身分與流量政策不再顯得零散。",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "Namespaces、RBAC 與 ServiceAccounts 是 Kubernetes 裡最基礎的安全邊界。",
+        "Admission 與 Pod 安全控制能在工作負載執行前，就先排除危險形狀。",
+        "當 Secret 傳遞綁定身分、最小權限與輪替流程時，安全性最高。",
+        "叢集層與 mesh 層的政策應互補，而不是重複堆疊出更多混亂。"
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "networking-services-and-gateway-api",
+        "configuration-storage-and-state",
+        "observability-and-day-2-operations",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 46,
+        "y": 63
+      },
+      "sections": [
+        {
+          "id": "identities-rbac-and-serviceaccounts",
+          "heading": "Namespaces、RBAC 與 ServiceAccounts",
+          "lede": "Kubernetes 安全的起點，是先決定誰可以向 API 要求什麼，以及每個工作負載應該帶著哪個身分。",
+          "body": [
+            "Namespace 提供第一層的組織與隔離邊界，但它本身不是完整的安全牆。RBAC 決定哪些使用者、群組或 ServiceAccounts 可以讀取或修改哪些資源。ServiceAccount 很重要，因為工作負載在呼叫 Kubernetes API，或使用信任叢集投射身分的外部系統時，都會使用它。",
+            "初學者健康的直覺，是避免過度寬鬆的預設值。如果每個工作負載都用 default ServiceAccount，每個團隊對所有資源都有 edit 權限，平台或許會有一週很輕鬆，但會留下多年的風險。"
+          ],
+          "callout": {
+            "label": "最小權限",
+            "tone": "insight",
+            "text": "工作負載身分應該明確且足夠收斂，避免單一被攻陷的 Pod 繼承整個叢集。"
+          },
+          "links": [
+            {
+              "label": "看看 metadata 如何支撐身分",
+              "targetChapterId": "why-kubernetes-exists",
+              "targetSectionId": "api-objects-and-metadata",
+              "reason": "Namespaces、labels 與 object metadata 是許多政策附著的原材料。"
+            },
+            {
+              "label": "看看 mTLS 如何把身分延伸到流量",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "當 Kubernetes 身分到位後，Istio 會把工作負載身分延伸到網路路徑上。"
+            }
+          ]
+        },
+        {
+          "id": "pod-security-and-admission",
+          "heading": "Pod 安全與 admission control",
+          "lede": "某些最划算的安全收益，發生在工作負載還沒落到節點之前。",
+          "body": [
+            "Admission 層會在 API 接受請求之前先檢查或改寫它們。這讓你可以拒絕高風險的工作負載形狀、強制 labels、要求 image policies，或注入安全預設。Pod security controls 則會收斂像是 privileged execution、host namespace 存取或危險 volume 類型等能力，避免單一錯誤 manifest 直接帶來節點層級風險。",
+            "這之所以重要，是因為工作負載一旦已經落地，執行期安全就會更難處理。預防勝於清理。被拒絕的 manifest 只是不方便；被攻陷的節點則很昂貴。"
+          ],
+          "callout": {
+            "label": "控制點",
+            "tone": "warning",
+            "text": "阻擋不安全工作負載最便宜的時機，就是 API 尚未接受它之前。"
+          },
+          "links": [
+            {
+              "label": "回到 API 這個前門",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "api-server-and-etcd",
+              "reason": "Admission control 就坐落在叢集意圖被接受的 API 路徑上。"
+            },
+            {
+              "label": "看看政策如何出現在除錯現場",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "kubectl-debug-loop",
+              "reason": "被 admission 拒絕或政策失敗，常先以令人意外的 apply 或 rollout 錯誤形式出現。"
+            }
+          ]
+        },
+        {
+          "id": "secret-delivery-and-supply-chain",
+          "heading": "Secret 傳遞與軟體供應鏈",
+          "lede": "安全不只在於誰能呼叫誰，也在於進入叢集的程式碼、image 與憑證是否值得信任。",
+          "body": [
+            "Secrets 應透過受控管線傳遞、有計畫地輪替，並只暴露給真正需要它們的工作負載。同時，container images 應來自可信任的 registry、經過掃描，並依據你的風險模型做 pinning 或 attestation。否則叢集只會成為快速散播錯誤內容的高效率機器。",
+            "初學者有時會把 Secret 管理與供應鏈管理分開看，但 production 系統會把它們感知成同一個故事。若你無法信任工作負載身分、image，或憑證流向，其他政策層做的就比較像事後補救，而不是事前預防。"
+          ],
+          "callout": {
+            "label": "共同關切",
+            "tone": "note",
+            "text": "你執行的 image 與交到它手上的 Secret，都屬於同一個信任邊界。"
+          },
+          "links": [
+            {
+              "label": "回到 ConfigMaps 與 Secrets",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "configmaps-and-secrets",
+              "reason": "物件型別只是起點；傳遞與輪替才把故事補完整。"
+            },
+            {
+              "label": "看看 mesh 身分如何加固流量",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "當工作負載本身可信之後，Istio 能進一步把這種信任延伸到 service-to-service 通訊。"
+            }
+          ]
+        },
+        {
+          "id": "policy-stacks-across-cluster-and-mesh",
+          "heading": "跨叢集與服務網格的政策堆疊",
+          "lede": "Kubernetes 與 Istio 都有政策面，因此目標應該是對齊，而不是重複。",
+          "body": [
+            "Kubernetes 政策可以管理誰能部署、Pod 長什麼樣，以及在較粗粒度上允許哪些網路路徑。Istio 政策則可以管理 service identity、mTLS、請求授權，以及服務路徑上的更細緻流量行為。只要每一層各自擁有清楚的責任，這些層就會彼此互補。",
+            "當團隊在沒有對齊意圖的情況下，把重疊控制堆得到處都是，混亂就會出現。例如，一個網路 deny 可能在 Istio authorization policy 還沒機會介入前，就先讓呼叫失敗。這並不是錯，但它意味著除錯路徑與政策擁有權都必須明確。"
+          ],
+          "callout": {
+            "label": "分層規則",
+            "tone": "insight",
+            "text": "當每一層都有清楚工作與可見擁有者時，安全控制最有力量。"
+          },
+          "links": [
+            {
+              "label": "看看底下那條基本網路",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "flat-network-model",
+              "reason": "先知道未加修飾的流量路徑，分層政策才更容易除錯。"
+            },
+            {
+              "label": "詳細看看 Istio 授權",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "mtls-authz-and-identity-boundaries",
+              "reason": "服務網格層正是具身分感知的流量政策特別強大的地方。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "observability-and-day-2-operations",
+      "title": "可觀測性與 day-2 營運",
+      "summary": "本章聚焦在第一次部署之後的營運迴路：如何理解失敗、合理擴展，以及把復原演練成日常。",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "當你把期望狀態、現況與最近 events 放在一起比較時，除錯會容易很多。",
+        "Logs、metrics、events 與 traces 回答的是不同問題，搭配使用效果最佳。",
+        "自動擴縮的可靠程度，取決於它底下的訊號與資源假設是否可信。",
+        "備份、升級演練與例行維護是平台營運的一部分，不是可有可無的附註。"
+      ],
+      "connections": [
+        "inside-the-cluster",
+        "pods-deployments-and-batch-work",
+        "configuration-storage-and-state",
+        "security-identity-and-policy",
+        "istio-1-30-from-first-principles",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 70,
+        "y": 48
+      },
+      "sections": [
+        {
+          "id": "kubectl-debug-loop",
+          "heading": "會隨你成長的 kubectl 除錯迴路",
+          "lede": "對初學者最好的除錯迴路其實很簡單：找出物件、比對期望與現況，然後在改動任何東西之前先讀 events 與 container 證據。",
+          "body": [
+            "先廣後窄。先確認 namespace 與 controller，檢查 rollout 或 status conditions，describe 該物件、查看相關 Pods，再讀近期 events。接著看 logs；若工作負載正在崩潰，也要看前一個 container 的 logs，以及任何 readiness 或 probe 失敗資訊。這個順序之所以有用，正是因為它很無聊：它會阻止你亂猜。",
+            "當系統變大，這套迴路仍然適用。差別只是 dashboards、tracing 與自動化能幫你更快執行。心智模型不變：原本期望的是什麼、實際發生了什麼，以及是哪個元件正在發出理由。"
+          ],
+          "callout": {
+            "label": "除錯習慣",
+            "tone": "insight",
+            "text": "先讀狀態與證據；重啟應該是在回答某個假設，而不是取代假設。"
+          },
+          "links": [
+            {
+              "label": "回到 controller 的擁有權",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "scheduler-and-controllers",
+              "reason": "知道下一步屬於哪個控制迴路，會讓 kubectl 輸出更容易解讀。"
+            },
+            {
+              "label": "回到 Pod 生命週期線索",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "pod-lifecycle",
+              "reason": "第一線除錯，大多仍然回到 container 啟動、readiness 或關閉行為。"
+            }
+          ]
+        },
+        {
+          "id": "logs-metrics-events-and-traces",
+          "heading": "Logs、metrics、events 與 traces 各有角色",
+          "lede": "可觀測性在你不再要求單一工具回答所有問題時，效果最好。",
+          "body": [
+            "Logs 解釋細節性的本地行為，metrics 概括隨時間變化的趨勢，events 告訴你 Kubernetes 控制迴路最近做了什麼判斷，而 traces 則呈現一個請求如何跨越系統邊界。它們彼此不能互相取代。高錯誤率的 metric 可能告訴你事情不對勁，trace 會指出是哪一跳失敗，而 log 再說明那一跳為何如此。",
+            "在 Kubernetes 與 Istio 環境裡，events 與 traces 特別有價值，因為移動部件很多。Deployment 可能健康，但 route 是錯的；route 可能正確，但某個下游服務很慢。多訊號的可觀測性能避免你把第一張打開的圖表誤認成全部真相。"
+          ],
+          "callout": {
+            "label": "訊號選擇",
+            "tone": "note",
+            "text": "選擇最符合問題的訊號，而不是把每個問題都硬塞進 logs。"
+          },
+          "links": [
+            {
+              "label": "看看 rollout 失敗先在哪裡浮現",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "在應用團隊感知到使用者影響之前，rollout 問題常先出現在 events 與 status conditions。"
+            },
+            {
+              "label": "看看為什麼 mesh telemetry 很吸引人",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "mesh-baseline-for-beginners",
+              "reason": "當應用 instrumentation 不一致時，Istio 能補上較一致的流量 telemetry。"
+            }
+          ]
+        },
+        {
+          "id": "autoscaling-and-capacity",
+          "heading": "自動擴縮與容量規劃",
+          "lede": "自動擴縮不是容量思維的替代品；它只是容量思維中的一項工具。",
+          "body": [
+            "水平自動擴縮會根據 CPU、記憶體或自訂 metrics 等訊號調整規模，但前提是 requests、limits 與 readiness 已經合理。接著 cluster autoscaling 才會根據待排工作與排程壓力增減節點。兩者能一起創造優雅彈性，但前提是工作負載對自己的需求足夠誠實。",
+            "容量規劃還包括 noisy neighbors、突發尖峰、批次窗口與 failure domains。能撐住平均負載的叢集，仍可能在 rollout、failover 或區域性事件中倒下。初學者常只看 happy path，而對餘裕與中斷情境投資不足。"
+          ],
+          "callout": {
+            "label": "擴縮真相",
+            "tone": "warning",
+            "text": "自動擴縮放大壞假設的能力，和放大好假設一樣強。"
+          },
+          "links": [
+            {
+              "label": "回到 requests 與 limits",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "probes-resources-and-evictions",
+              "reason": "好的自動擴縮，始於可信的資源訊號。"
+            },
+            {
+              "label": "看看 mesh retries 如何影響負載",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "resilience-with-timeouts-retries-and-outliers",
+              "reason": "如果 retries 或 failover 過於激進，流量政策會劇烈改變容量行為。"
+            }
+          ]
+        },
+        {
+          "id": "backups-drills-and-day-2-rhythm",
+          "heading": "備份、演練與 day-2 節奏",
+          "lede": "營運成熟度較少來自一次英雄式事故處理，更多來自那些讓事故變得平常的排練習慣。",
+          "body": [
+            "健康的 day-2 節奏包括定期驗證備份、升級彩排、檢查證書輪替、練習節點替換，以及事故後學習。這些不是後來硬貼在平台上的家務；它們就是讓平台長期值得信任的維護迴路。",
+            "演練之所以重要，是因為它會在你還有餘裕時揭露隱藏依賴。第一次還原 etcd、輪替 mesh 證書，或清空一個 node pool，不該發生在正式 outage 中。平靜的反覆練習，會培養出可靠的直覺。"
+          ],
+          "callout": {
+            "label": "營運姿態",
+            "tone": "insight",
+            "text": "例行演練會把少見且高壓的事件，轉成身體記得的熟悉動作。"
+          },
+          "links": [
+            {
+              "label": "回到狀態復原",
+              "targetChapterId": "configuration-storage-and-state",
+              "targetSectionId": "backing-up-and-moving-state",
+              "reason": "儲存復原計畫，是 day-2 信心裡最重要的一部分。"
+            },
+            {
+              "label": "連到 mesh 與叢集升級",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "只有透過分階段彩排與 rollback 計畫，升級紀律才會成為現實。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "istio-1-30-from-first-principles",
+      "title": "從第一原理理解 Istio 1.30",
+      "summary": "本章為已理解 Kubernetes 基本流量路徑、並想知道 Istio 真正額外帶來什麼的人介紹 service mesh 概念。",
+      "estimatedMinutes": 22,
+      "keyIdeas": [
+        "Service mesh 把原本分散在各服務中的流量政策、身分與 telemetry 集中起來。",
+        "Istio 1.30.0 同時提供傳統 sidecar mode 與 ambient mode 兩種值得評估的模式。",
+        "Istiod 負責管理設定與證書，而 data-plane 元件則負責落實流量行為。",
+        "Revisions 與專用 gateway 佈局，能讓 mesh 升級與邊界管理更安全。"
+      ],
+      "connections": [
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations",
+        "traffic-management-mesh-security-and-rollout-strategy"
+      ],
+      "mapPosition": {
+        "x": 78,
+        "y": 18
+      },
+      "sections": [
+        {
+          "id": "why-a-service-mesh",
+          "heading": "人們為什麼要加上 service mesh",
+          "lede": "當 service-to-service 流量需要一致的安全、可觀測性與路由行為，而團隊又不可能靠手工長期對齊時，mesh 就會變得有吸引力。",
+          "body": [
+            "沒有 mesh 時，每一套應用技術棧都可能以不同方式實作 TLS、retries、timeouts、telemetry 與 authorization。有些團隊做得很好，有些做一半，有些則永遠排不到。Mesh 會把其中很大一部分關切移進共享基礎設施，讓平台團隊定義共同的流量行為，而應用團隊專注在商業邏輯。",
+            "這並不代表每個叢集都需要 Istio。真正誠實的問題，是額外控制是否足以抵消額外複雜度。若你只有少量服務，且跨團隊不一致不嚴重，原生 Kubernetes 可能就夠了；若你需要一致的身分、漸進式流量切換與全網格政策，Istio 就更容易被合理化。"
+          ],
+          "callout": {
+            "label": "採用篩選器",
+            "tone": "note",
+            "text": "當 mesh 能移除反覆出現的應用層流量工作時，它才真正有價值；若只是多加一層流行架構，價值就有限。"
+          },
+          "links": [
+            {
+              "label": "回到原本的流量路徑",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "traffic-path-before-istio",
+              "reason": "只有知道平台已經提供什麼，你才能清楚評估 mesh 的增益。"
+            },
+            {
+              "label": "看看價值實際落在哪裡",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "reason": "流量政策、身分與 rollout 控制，是 mesh 最主要的實務產出。"
+            }
+          ]
+        },
+        {
+          "id": "istiod-sidecars-and-ambient",
+          "heading": "Istiod、sidecars 與 ambient mode",
+          "lede": "Istio 有一個負責分發政策與證書的 control plane，以及真正位於流量路徑上的 data-plane 元件。",
+          "body": [
+            "在傳統 sidecar mode 中，每個 Pod 都會附上一個本地 proxy，攔截該工作負載的流量。這能帶來細緻的逐工作負載控制，但也增加資源開銷與營運表面。在 ambient mode 中，其中一部分責任會移到 ztunnel 與 waypoint proxies 等共享層，這可能降低和應用綁定的開銷，但也改變政策在何處、如何被執行。",
+            "對初學者而言，重要的比較不是哪個模式在社群上更紅，而是哪一種更符合你的需求。當你想要最成熟、行為模型最久經驗證的做法時，sidecars 仍然直接；當成本、某些工作負載的簡化，或漸進式導入是決策重點時，ambient mode 就很有吸引力。"
+          ],
+          "callout": {
+            "label": "模式選擇",
+            "tone": "insight",
+            "text": "sidecar 與 ambient，是為了相同大方向目標──政策、安全與 telemetry──而採取的不同部署策略。"
+          },
+          "links": [
+            {
+              "label": "回到工作負載身分",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "當你先熟悉 Kubernetes 的工作負載身分後，Istio 的流量身分會更容易理解。"
+            },
+            {
+              "label": "看看 waypoint 如何影響 rollout 規劃",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "canaries-waypoints-and-upgrades",
+              "reason": "Waypoint 佈置與模式選擇，會影響你如何分階段導入 mesh。"
+            }
+          ]
+        },
+        {
+          "id": "install-revisions-and-gateway-layout",
+          "heading": "安裝、revisions 與 gateway 佈局",
+          "lede": "把 Istio 裝好，關鍵不在第一條命令，而在 control planes、gateways 與升級邊界的擺放方式。",
+          "body": [
+            "Istio revisions 允許你讓多個 control-plane 版本並行，並逐步移動工作負載。這會大幅降低升級風險，因為你可以把 namespaces 或 workloads 轉向新的 revision，而不是原地重寫整個 control plane。這相當於在服務網格中，也偏好漸進式 rollout，而不是一次性替換。",
+            "Gateway 佈局同樣重要。你可能會運行專用 ingress gateways、獨立的 east-west gateways，或為特定流量範圍配置 waypoint proxies。好的佈局會讓 blast radius、政策擁有權與效能更容易推理；差的佈局則會把耦合藏到第一場事故才暴露。"
+          ],
+          "callout": {
+            "label": "升級原則",
+            "tone": "warning",
+            "text": "如果你的 mesh 升級計畫只有「一次全部替換」，那真正的計畫其實叫做希望。"
+          },
+          "links": [
+            {
+              "label": "回到叢集的版本偏差規則",
+              "targetChapterId": "inside-the-cluster",
+              "targetSectionId": "version-skew-and-upgrades",
+              "reason": "無論叢集或 mesh，分階段且受支援的版本轉換都更值得信賴。"
+            },
+            {
+              "label": "看看 gateways 上的流量政策",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "targetSectionId": "virtualservices-destinationrules-and-gateways",
+              "reason": "Gateway 佈局與路由政策之間，關聯非常緊密。"
+            }
+          ]
+        },
+        {
+          "id": "mesh-baseline-for-beginners",
+          "heading": "Istio 1.30 的合理初學者基線",
+          "lede": "學習 Istio 最安全的方式，是一次只採用一個清楚的 use case，而不是第一天就打開所有功能。",
+          "body": [
+            "實務上合理的初學者基線，通常是少量工作負載、清楚的 namespace 邊界、簡單的 ingress routing、預設 telemetry，以及一兩個安全目標，例如 mTLS 或 service-to-service authorization。這樣第一次部署才容易理解。等基本操作模型變得平常後，你再加入進階流量塑形、waypoints 或擴大 ambient 佈署。",
+            "Istio 1.30.0 足夠新，因此你應該優先使用基於 revision 的安裝、最新文件，以及明確的模式選擇。所謂初學者基線，不是要永遠維持很小，而是先建立一個能安全成長的心智模型。"
+          ],
+          "callout": {
+            "label": "學習策略",
+            "tone": "insight",
+            "text": "先為一個真實成果導入 mesh，等營運模型清楚後，再擴大覆蓋範圍。"
+          },
+          "links": [
+            {
+              "label": "看看可觀測性的回報",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "logs-metrics-events-and-traces",
+              "reason": "只有知道 mesh telemetry 如何補充既有訊號，才能真正用好它。"
+            },
+            {
+              "label": "繼續深入流量與安全政策",
+              "targetChapterId": "traffic-management-mesh-security-and-rollout-strategy",
+              "reason": "下一步，就是理解 mesh 能具體控制哪些行為。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "traffic-management-mesh-security-and-rollout-strategy",
+      "title": "流量管理、服務網格安全與 rollout 策略",
+      "summary": "本章深入 Istio 最常被採用的部分：精準流量控制、服務身分、韌性行為，以及更安全的變更 rollout。",
+      "estimatedMinutes": 26,
+      "keyIdeas": [
+        "Istio 的路由資源讓你可以有意識地導引流量，而不只依賴副本替換。",
+        "Retries、timeouts 與 outlier detection 很強大，但若忽略容量現實也可能反噬。",
+        "mTLS 與 authorization policies 讓信任從依賴 IP 的假設，轉向依賴工作負載身分。",
+        "Canary、waypoints 與基於 revision 的升級，能在變更應用或 mesh 本身時降低風險。"
+      ],
+      "connections": [
+        "networking-services-and-gateway-api",
+        "security-identity-and-policy",
+        "observability-and-day-2-operations",
+        "istio-1-30-from-first-principles"
+      ],
+      "mapPosition": {
+        "x": 82,
+        "y": 68
+      },
+      "sections": [
+        {
+          "id": "virtualservices-destinationrules-and-gateways",
+          "heading": "VirtualServices、DestinationRules 與 gateways",
+          "lede": "學 Istio 流量管理最簡單的方式，是把問題拆成三件事：流量從哪裡進來、如何比對，以及接著要送往哪裡。",
+          "body": [
+            "Gateway 資源定義流量入口，而路由與政策資源則決定請求如何被比對與轉送。VirtualService 會表達路由意圖，例如 path matches、依 header 分支，或按權重切分流量。DestinationRule 描述 subsets 或 destinations 的政策，例如連線行為，或綁定到 labels 的 subset 定義。",
+            "這裡的力量在於精準。你不只是說部署版本 B，然後希望 rollout 模式足夠好；你可以明確把 10% 流量導向某個帶 label 的 subset、讓特定請求停留在穩定路徑上，或讓不同租戶走不同路由。這種控制能力，才讓進階 canary 與共享平台政策在實務上可行。"
+          ],
+          "callout": {
+            "label": "路由視角",
+            "tone": "insight",
+            "text": "Kubernetes 提供 service discovery；Istio 則在其上加上可程式化的流量決策。"
+          },
+          "links": [
+            {
+              "label": "回到 Service discovery",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "services-dns-and-discovery",
+              "reason": "在底層，Istio 路由仍依賴穩定的 service identity。"
+            },
+            {
+              "label": "回到 mesh 安裝邊界",
+              "targetChapterId": "istio-1-30-from-first-principles",
+              "targetSectionId": "install-revisions-and-gateway-layout",
+              "reason": "Gateway 位置與 revision 策略，會影響這些路由政策如何被套用。"
+            }
+          ]
+        },
+        {
+          "id": "resilience-with-timeouts-retries-and-outliers",
+          "heading": "用 timeouts、retries 與 outlier handling 建立韌性",
+          "lede": "韌性政策之所以強大，是因為它們把失敗處理從隱藏在 client 程式碼裡的邏輯，變成看得見的平台行為。",
+          "body": [
+            "Timeouts 為請求等待時間設定上界；retries 在失敗是暫時性的情況下提供第二次機會；circuit breaking 或 outlier handling 則能停止把流量送往看起來不健康的實例。這些工具之所以有用，正是因為分散式系統的失敗通常是局部且不平均的。",
+            "但若用得草率，它們也很危險。過度積極的 retries 會在 outage 中倍增負載，把一個緩慢服務推向全面失敗；比正常尾端延遲更短的 timeout，會製造出假的失敗。好的韌性政策必須反映真實工作負載行為，並透過負載與故障測試驗證。"
+          ],
+          "callout": {
+            "label": "失敗數學",
+            "tone": "warning",
+            "text": "Retries 不是免費的；它們是在系統最脆弱時額外加上的工作量。"
+          },
+          "links": [
+            {
+              "label": "回到自動擴縮與容量",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "autoscaling-and-capacity",
+              "reason": "流量韌性政策與容量規劃，必須一起設計。"
+            },
+            {
+              "label": "回到原本的流量路徑",
+              "targetChapterId": "networking-services-and-gateway-api",
+              "targetSectionId": "traffic-path-before-istio",
+              "reason": "你需要先有基線路徑，才看得出 retries 與 failover 被插在什麼位置。"
+            }
+          ]
+        },
+        {
+          "id": "mtls-authz-and-identity-boundaries",
+          "heading": "mTLS、授權與身分邊界",
+          "lede": "Istio 最大的價值主張之一，就是把服務身分變成流量路徑中可被強制執行的一部分。",
+          "body": [
+            "雙向 TLS 會加密流量，並給每個工作負載一個由證書支撐的身分。Authorization policies 隨後就能根據該身分、namespace、principal 或請求屬性做決策。這代表主要邊界不再是被信任的網段或靜態 IP 範圍，而是工作負載本身的身分。",
+            "結果並不是「預設就完美安全」。你仍然需要健全的工作負載身分、合理的 namespace 設計，以及謹慎的政策 rollout。但相較於只依賴網路位置，它確實帶來更豐富、也更可稽核的信任模型。"
+          ],
+          "callout": {
+            "label": "身分升級",
+            "tone": "insight",
+            "text": "當 Istio 把工作負載視為具名身分，而不只是來自某個位址的封包時，安全能力最強。"
+          },
+          "links": [
+            {
+              "label": "回到 ServiceAccounts 與 RBAC",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "identities-rbac-and-serviceaccounts",
+              "reason": "Mesh 身分是建立在 Kubernetes 已經確立的工作負載身分之上。"
+            },
+            {
+              "label": "回到政策分層",
+              "targetChapterId": "security-identity-and-policy",
+              "targetSectionId": "policy-stacks-across-cluster-and-mesh",
+              "reason": "這正是叢集政策與 mesh 政策最需要清楚分工的地方。"
+            }
+          ]
+        },
+        {
+          "id": "canaries-waypoints-and-upgrades",
+          "heading": "Canary、waypoints 與升級",
+          "lede": "最安全的 mesh 與應用變更，是那些可以逐步暴露、仔細觀察，並在短時間內回退的變更。",
+          "body": [
+            "加權路由讓 canary 不必綁死在原始 replica 數量上，當請求價值分布不均時尤其實用。Waypoint proxies 與基於 revision 的 rollout 模式，也能隔離新政策或新 mesh 行為被引入的位置。它們一起讓你有意識地測試變更邊界，而不是期待平均情況具有代表性。",
+            "操作模式其實永遠相同：縮小 blast radius、提高可觀測性，並把 rollback 放在手邊。這適用於應用發布、gateway 變更、mesh 升級與 ambient 導入。工具會不同，但紀律相同。"
+          ],
+          "callout": {
+            "label": "發版紀律",
+            "tone": "note",
+            "text": "漸進式交付的本質，是先買到更多資訊，再決定是否花掉全部風險預算。"
+          },
+          "links": [
+            {
+              "label": "回到 Deployment rollout",
+              "targetChapterId": "pods-deployments-and-batch-work",
+              "targetSectionId": "deployments-and-rollouts",
+              "reason": "Istio canary 是在 Kubernetes 已提供的基本 rollout 紀律上延伸，而不是取代它。"
+            },
+            {
+              "label": "回到 day-2 演練",
+              "targetChapterId": "observability-and-day-2-operations",
+              "targetSectionId": "backups-drills-and-day-2-rhythm",
+              "reason": "只有在 rollback 與驗證流程都被排練過時，漸進式升級才會真正安全。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

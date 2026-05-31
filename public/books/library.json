@@ -1,37 +1,5 @@
 [
   {
-    "id": "atlas-of-adaptive-reading",
-    "title": "Atlas of Adaptive Reading",
-    "subtitle": "A handbook for moving through idea webs instead of static pages",
-    "description": "A sample AI-generated book about designing nonlinear reading flows, chapter maps, and recall layers for knowledge-heavy content.",
-    "coverEmoji": "🧭",
-    "durationMinutes": 42,
-    "tags": [
-      "Reader UX",
-      "Knowledge graph",
-      "Recall loops"
-    ],
-    "file": "books/atlas-of-adaptive-reading.json",
-    "accent": "#8b5cf6",
-    "surface": "#160f2b"
-  },
-  {
-    "id": "field-guide-to-quiet-automation",
-    "title": "Field Guide to Quiet Automation",
-    "subtitle": "Small local systems that help without taking over",
-    "description": "A second sample book focused on lightweight automation patterns, visible feedback, and keeping local tools understandable.",
-    "coverEmoji": "🌿",
-    "durationMinutes": 36,
-    "tags": [
-      "Automation",
-      "Local-first",
-      "Systems thinking"
-    ],
-    "file": "books/field-guide-to-quiet-automation.json",
-    "accent": "#22c55e",
-    "surface": "#0f1f1a"
-  },
-  {
     "id": "fundamentals-of-llms",
     "title": "The Fundamentals of LLMs",
     "subtitle": "From everyday intuition to production systems",
@@ -50,6 +18,24 @@
     "surface": "#0b1324"
   },
   {
+    "id": "fundamentals-of-llms-zh-hant",
+    "title": "LLM 的基本原理",
+    "subtitle": "從日常直覺到生產系統",
+    "description": "一本以生產實務為導向的大型語言模型指南，從下一個 token 預測與 transformer 出發，延伸到 prompting、檢索、評估、部署與安全。",
+    "coverEmoji": "🧠",
+    "durationMinutes": 149,
+    "tags": [
+      "AI 素養",
+      "LLMs",
+      "Prompting",
+      "RAG",
+      "AI 工程"
+    ],
+    "file": "books/fundamentals-of-llms-zh-hant.json",
+    "accent": "#38bdf8",
+    "surface": "#0b1324"
+  },
+  {
     "id": "kubernetes-and-istio-from-zero",
     "title": "Kubernetes and Istio from Zero",
     "subtitle": "A beginner-friendly deep dive into containers, clusters, and service mesh operations",
@@ -64,6 +50,24 @@
       "Service mesh"
     ],
     "file": "books/kubernetes-and-istio-from-zero.json",
+    "accent": "#22d3ee",
+    "surface": "#071826"
+  },
+  {
+    "id": "kubernetes-and-istio-from-zero-zh-hant",
+    "title": "從零開始理解 Kubernetes 與 Istio",
+    "subtitle": "為初學者設計、深入探索容器、叢集與服務網格營運",
+    "description": "為新手準備的實戰導讀，從第一原理出發，落腳於 Kubernetes 1.36.1 與 Istio 1.30.0 的現代化生產模式。",
+    "coverEmoji": "⎈",
+    "durationMinutes": 176,
+    "tags": [
+      "Kubernetes",
+      "Istio",
+      "容器",
+      "平台工程",
+      "服務網格"
+    ],
+    "file": "books/kubernetes-and-istio-from-zero-zh-hant.json",
     "accent": "#22d3ee",
     "surface": "#071826"
   }
