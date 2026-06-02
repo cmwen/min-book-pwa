@@ -2,9 +2,9 @@
   "id": "fundamentals-of-llms",
   "title": "The Fundamentals of LLMs",
   "subtitle": "From everyday intuition to production systems",
-  "description": "A production-minded field guide to large language models, expanding from next-token prediction and transformers to prompting, retrieval, evaluation, deployment, and safety.",
+  "description": "A production-minded field guide to large language models, expanding from next-token prediction and transformers to runtime, model compression, open-weight customization, evaluation, deployment, and safety.",
   "coverEmoji": "🧠",
-  "durationMinutes": 149,
+  "durationMinutes": 187,
   "tags": [
     "AI literacy",
     "LLMs",
@@ -68,6 +68,31 @@
       "concept": "High stakes need handoffs",
       "reminder": "Human review, abstention, and reversible actions are product features, not admissions of failure.",
       "useWhen": "Use this when the system can affect money, rights, safety, privacy, or access."
+    },
+    {
+      "concept": "Q, K, and V play different jobs",
+      "reminder": "Queries ask what the current token needs, keys advertise what earlier tokens contain, and values carry the content that gets mixed in.",
+      "useWhen": "Use this when attention feels mystical and you need a practical picture of how token-to-token lookup works."
+    },
+    {
+      "concept": "The FFN is per-token compute",
+      "reminder": "After attention mixes information across tokens, the feed-forward network reshapes each token locally and stores much of the model's feature logic.",
+      "useWhen": "Use this when explaining why transformers are not just attention and why MLP size matters."
+    },
+    {
+      "concept": "KV cache buys speed with memory",
+      "reminder": "During decoding, the runtime stores old keys and values so it can avoid recomputing the whole prompt every token.",
+      "useWhen": "Use this when serving gets slow or memory-heavy as conversations or context windows grow."
+    },
+    {
+      "concept": "Dense and MoE trade compute differently",
+      "reminder": "Dense models activate all weights every token, while MoE routes each token through a small expert subset to increase total capacity without equal active compute.",
+      "useWhen": "Use this when comparing model families, serving costs, or why a model can have huge total parameters but lower per-token compute."
+    },
+    {
+      "concept": "Customize open weights in layers",
+      "reminder": "Start with prompting, retrieval, tools, and adapters before reaching for full fine-tuning or checkpoint surgery.",
+      "useWhen": "Use this when an open model is close to useful and you need the safest lever that changes behavior."
     }
   ],
   "appendix": [
@@ -77,7 +102,10 @@
         "Fast intuition route: What an LLM is -> Tokens, context, and attention -> Limits, risks, and failure modes.",
         "Builder route: What an LLM is -> Tokens, context, and attention -> Prompting, structured outputs, and control -> Retrieval, tools, and agents.",
         "Search and grounding route: Meaning as vectors -> Retrieval, tools, and agents -> Evaluation, cost, and operations.",
-        "Production route: How models are trained and aligned -> Prompting, structured outputs, and control -> Evaluation, cost, and operations -> Limits, risks, and failure modes."
+        "Production route: How models are trained and aligned -> Prompting, structured outputs, and control -> Evaluation, cost, and operations -> Limits, risks, and failure modes.",
+        "Architecture deep dive: What an LLM is -> Tokens, context, and attention -> Inside the transformer and inference runtime -> Scaling, compression, and open-weight models.",
+        "Builder route: What an LLM is -> Tokens, context, and attention -> Inside the transformer and inference runtime -> Prompting, structured outputs, and control -> Retrieval, tools, and agents.",
+        "Model strategy route: How models are trained and aligned -> Scaling, compression, and open-weight models -> Evaluation, cost, and operations -> Limits, risks, and failure modes."
       ]
     },
     {
@@ -89,7 +117,16 @@
         "Embedding: a vector representation that lets software compare semantic similarity.",
         "RAG: retrieval-augmented generation, where relevant documents are fetched before the model answers.",
         "Tool call: a structured request from the model to external software for an exact action or lookup.",
-        "Alignment: the broader effort to make model behavior useful, safe, and appropriate in a specific context."
+        "Alignment: the broader effort to make model behavior useful, safe, and appropriate in a specific context.",
+        "Self-attention: the mechanism that lets each token weigh which earlier tokens matter most for its next internal update.",
+        "Query, key, value: three learned projections used by attention to score relevance and mix information.",
+        "FFN or MLP: the feed-forward layer that transforms each token representation after attention has shared context.",
+        "KV cache: stored keys and values from prior tokens that speed up autoregressive decoding.",
+        "Dense model: a model where every layer is active for every token.",
+        "MoE: mixture of experts, where routing activates only a subset of expert sub-networks for each token.",
+        "Quantization: storing weights with fewer bits to reduce memory and often improve local deployability.",
+        "Open-weight model: a model whose parameters are available for others to download and run under a stated license.",
+        "LoRA: a low-rank adapter technique that changes behavior by training small extra matrices instead of rewriting all weights."
       ]
     },
     {
@@ -100,7 +137,11 @@
         "Structured output sketch: response = model({ schema: { severity, summary } }).",
         "Tool call sketch: if tool == \"get_order_status\", execute({ orderId }).",
         "Guarded agent sketch: while steps < 6 and budget_ok and not done: decide -> call_tool -> verify -> summarize.",
-        "Rollback sketch: if eval_score drops below threshold, restore previous prompt and retriever versions."
+        "Rollback sketch: if eval_score drops below threshold, restore previous prompt and retriever versions.",
+        "Attention sketch: scores = softmax((Q @ K_transpose) / sqrt(head_dim)); mixed = scores @ V.",
+        "Serving sketch: prefill(prompt_tokens) -> decode(next_token, kv_cache) -> append -> stop_if(eos).",
+        "Quantized deploy sketch: weights = load_4bit(model_path); answer = runtime.generate(prompt, max_new_tokens=256).",
+        "Adapter tuning sketch: base = load_model(); lora = train_adapter(base, instruction_data); merged = merge_if_needed(base, lora)."
       ]
     },
     {
@@ -111,7 +152,11 @@
         "Route easy tasks to smaller or cheaper models before escalating to larger ones.",
         "Track prompt version, retrieval hits, tool calls, latency, and user outcome in one trace.",
         "Make bad production examples part of the golden dataset for future releases.",
-        "Add human approval before any high-stakes or irreversible action."
+        "Add human approval before any high-stakes or irreversible action.",
+        "Budget memory as weights plus KV cache plus runtime overhead, not weights alone.",
+        "Use small proxy models and shared evals to learn which data and objective changes are worth spending on larger runs.",
+        "Prefer the narrowest customization layer that solves the problem; broad checkpoint edits increase operational risk.",
+        "Treat requests to make a model less restrictive as policy changes, not just style tweaks."
       ]
     }
   ],
@@ -129,7 +174,8 @@
       ],
       "connections": [
         "tokens-and-context",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 14,
@@ -313,7 +359,8 @@
       "connections": [
         "what-is-an-llm",
         "training-and-alignment",
-        "prompting-and-outputs"
+        "prompting-and-outputs",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 38,
@@ -417,6 +464,12 @@
               "label": "See the training backdrop",
               "targetChapterId": "training-and-alignment",
               "reason": "The ability to form these relevance patterns is learned during large-scale training."
+            },
+            {
+              "label": "Go deeper on Q, K, and V",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "qkv-and-self-attention",
+              "reason": "This deeper section expands the attention picture into the actual learned pieces used inside each head."
             }
           ]
         },
@@ -450,6 +503,12 @@
               "label": "See what prompt authors control",
               "targetChapterId": "prompting-and-outputs",
               "reason": "Prompt design works by shaping the token patterns that these blocks repeatedly transform."
+            },
+            {
+              "label": "Open up the block internals",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "ffn-mlp-and-residual-path",
+              "reason": "The deeper architecture chapter shows exactly what the FFN and residual path add to the basic block sketch."
             }
           ]
         },
@@ -482,6 +541,205 @@
               "label": "Measure the impact in operations",
               "targetChapterId": "evaluation-and-operations",
               "reason": "Ablation tests and trace review show which instructions survive under realistic load and noise."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inside-the-transformer-runtime",
+      "title": "Inside the transformer and inference runtime",
+      "summary": "This chapter opens the model up: token embeddings, Q/K/V attention, feed-forward layers, prefill and decode, and the KV cache that makes modern serving fast enough to feel interactive.",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "An LLM checkpoint usually contains token embeddings, many transformer blocks, normalization layers, and an output head tied to the vocabulary.",
+        "Self-attention uses queries, keys, and values to decide which earlier tokens should influence each token representation.",
+        "The FFN or MLP is where each token is nonlinearly transformed after context mixing, which is why transformer blocks are not just attention.",
+        "Inference has a prefill phase and a decode phase, and the KV cache speeds decode by reusing earlier attention state."
+      ],
+      "connections": [
+        "what-is-an-llm",
+        "tokens-and-context",
+        "training-and-alignment",
+        "scaling-compression-and-open-models"
+      ],
+      "mapPosition": {
+        "x": 46,
+        "y": 34
+      },
+      "sections": [
+        {
+          "id": "what-is-inside-a-checkpoint",
+          "heading": "What sits inside a modern LLM checkpoint",
+          "lede": "When people say model, they often mean one file name, but the checkpoint really contains several repeating parts that convert token IDs into next-token probabilities.",
+          "body": [
+            "A decoder-style LLM usually begins with a token embedding table that maps token IDs to vectors, then stacks many transformer blocks, finishes with a final normalization layer, and projects back into vocabulary logits through an output head. A simple sketch is token_ids -> embeddings -> blocks x N -> norm -> logits -> sample_next_token. The weights in those layers are the parameters people count when they say 7B or 70B.",
+            "Several of those pieces are shared rather than magical. The tokenizer decides which token IDs exist, the embedding matrix gives each token a starting vector, position information tells the model where the token sits in the sequence, and every block repeatedly updates those vectors into richer internal descriptions. By the time logits are produced, the model is not retrieving a sentence from storage; it is converting the current hidden state into scores over the entire vocabulary.",
+            "This breakdown matters in practice because each part costs memory and compute differently. The embedding table scales with vocabulary size, transformer blocks dominate both parameters and floating-point work, and the output projection can also be large. Thinking in components makes later topics such as quantization, grouped-query attention, and adapter tuning easier to reason about."
+          ],
+          "callout": {
+            "label": "Checkpoint view",
+            "tone": "insight",
+            "text": "An LLM is not one monolithic blob. It is a stack of learned matrices that repeatedly turns token vectors into better token vectors before predicting the next token."
+          },
+          "links": [
+            {
+              "label": "Revisit what the next-token loop is doing",
+              "targetChapterId": "what-is-an-llm",
+              "targetSectionId": "predicting-next-token",
+              "reason": "The checkpoint layout makes more sense once you reconnect it to the basic generation loop."
+            },
+            {
+              "label": "Tie this to tokenization and context",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "text-becomes-tokens",
+              "reason": "Embeddings only start after text has already been chopped into the token IDs the model knows how to process."
+            },
+            {
+              "label": "Continue to model size and deployment tradeoffs",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "Memory optimization is easier when you know which checkpoint parts are expensive and why."
+            }
+          ]
+        },
+        {
+          "id": "qkv-and-self-attention",
+          "heading": "Q, K, V, and self-attention in plain language",
+          "lede": "Self-attention sounds abstract until you picture each token asking what it needs, scanning what earlier tokens advertise, and then borrowing the right information back.",
+          "body": [
+            "Inside each attention head, the hidden state of every token is projected into three learned vectors called query, key, and value. The query says what this token is looking for, the key says what signal another token offers, and the value carries the content to mix in if that earlier token turns out to matter. The core sketch is scores = softmax((Q @ K_transpose) / sqrt(head_dim)); mixed = scores @ V.",
+            "Because the model is autoregressive, each position in a decoder can only attend to itself and earlier positions. That masking rule is what makes the mechanism self-attention for generation rather than free peeking at the future. Multi-head attention repeats the process with several smaller heads, letting one head focus on syntax, another on long-range reference, and another on formatting or position without forcing one universal notion of relevance.",
+            "Q, K, and V are not hand-written symbols with fixed semantics. They are learned linear projections that adapt during training, which is why attention heads can specialize in surprising ways. Still, the query-asks, key-advertises, value-carries-content story is good enough to debug prompts, understand why buried instructions fade, and see why long contexts create both richer possibilities and harder selection problems."
+          ],
+          "callout": {
+            "label": "Attention picture",
+            "tone": "note",
+            "text": "Query asks, key matches, value delivers. That single pattern explains a large fraction of how transformers reuse earlier context."
+          },
+          "links": [
+            {
+              "label": "Compare with the shorter attention intuition",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "attention-in-one-page",
+              "reason": "This section expands the simpler intuition into the actual Q, K, and V roles."
+            },
+            {
+              "label": "See why prompt order matters",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "instruction-order-and-salience",
+              "reason": "Salience problems often start as attention heads rewarding the wrong earlier tokens."
+            },
+            {
+              "label": "Connect to inference speed and KV cache",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "The cache stores these historical keys and values so decoding does not recompute them every step."
+            }
+          ]
+        },
+        {
+          "id": "ffn-mlp-and-residual-path",
+          "heading": "Why the FFN matters as much as attention",
+          "lede": "Attention mixes information across tokens, but the feed-forward network is where each token gets individually rewritten through a larger nonlinear transformation.",
+          "body": [
+            "After attention updates a token with context from elsewhere, the block usually passes that token through a position-wise feed-forward network, often called the MLP. This sublayer applies the same learned function to every token independently, typically expanding to a wider hidden size, applying a nonlinearity, and projecting back down. A sketch is y = W2 * activation(W1 * x), done separately for each token vector.",
+            "That local transformation is more important than many introductions admit. Attention is excellent at routing and mixing, but the FFN is where the model can bend the mixed representation into features useful for later layers, such as latent concepts, decision boundaries, or reusable code patterns. In many analyses, a great deal of the model's memorized features and task-specific behavior seems to live in these MLP weights rather than in attention alone.",
+            "Residual connections and normalization keep this whole stack trainable. The residual path lets the network add a new update instead of rewriting the token from scratch, while normalization keeps activations in a range where deep training stays stable. So a realistic transformer mental model is mix across tokens, transform within each token, add the update back, and repeat many times."
+          ],
+          "callout": {
+            "label": "Architecture correction",
+            "tone": "insight",
+            "text": "If you imagine a transformer as only attention, you are missing half the block and much of the model's feature-building capacity."
+          },
+          "links": [
+            {
+              "label": "Return to the high-level block view",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "transformer-block-intuition",
+              "reason": "The simpler transformer sketch becomes easier to trust once you see what the FFN is contributing."
+            },
+            {
+              "label": "Connect architecture to pretraining scale",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "pretraining-shape",
+              "reason": "Huge training runs teach both attention and MLP weights how to cooperate over many layers."
+            },
+            {
+              "label": "See how smaller devices squeeze this stack",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "Compression choices often target the weights and activations inside these repeated attention-plus-MLP blocks."
+            }
+          ]
+        },
+        {
+          "id": "prefill-and-decode-runtime",
+          "heading": "How inference runtime works: prefill first, then decode",
+          "lede": "Serving an LLM is not one uniform computation. The runtime usually pays a heavy first pass over the prompt, then shifts into a smaller repeated loop for each generated token.",
+          "body": [
+            "The first phase is often called prefill. The runtime tokenizes the prompt, runs it through every layer, and builds the hidden states, keys, and values needed to condition generation. Prefill cost scales with prompt length, which is why very long contexts can feel slow before the first answer token appears even when later decoding is fast.",
+            "Once prefill is done, decoding begins. Each new token is appended, the model runs one more autoregressive step, and the sampler chooses the next token according to settings such as temperature, top-p, repetition penalties, or constrained grammar rules. The visible chat experience is therefore a loop more like prompt ingest once, then token-by-token continuation, not full reprocessing from zero every time.",
+            "Understanding those two phases helps teams debug latency. Slow time-to-first-token often points to large prompts, expensive retrieval inserts, or heavy prompt-side formatting. Slow tokens-per-second after generation starts more often points to model size, hardware limits, cache pressure, quantization choices, or batching strategy in the serving engine."
+          ],
+          "callout": {
+            "label": "Serving heuristic",
+            "tone": "note",
+            "text": "Time to first token and steady decode speed are different problems, so they should be measured and optimized separately."
+          },
+          "links": [
+            {
+              "label": "Relate prompt length to context budgeting",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "context-window-budget",
+              "reason": "The prefill phase is where long prompts convert directly into latency and memory cost."
+            },
+            {
+              "label": "Tie runtime behavior to cost operations",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "Operations work benefits from splitting latency analysis into prompt-side and decode-side causes."
+            },
+            {
+              "label": "Continue into the KV cache tradeoff",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "The cache is one of the main reasons decode can be much cheaper than re-running the whole prompt."
+            }
+          ]
+        },
+        {
+          "id": "kv-cache-explained",
+          "heading": "What the KV cache is and why it dominates serving tradeoffs",
+          "lede": "The KV cache stores historical keys and values for each layer so the model can keep decoding without recomputing attention over the whole prompt every step.",
+          "body": [
+            "During autoregressive decoding, old tokens do not change. Their keys and values for each layer can therefore be saved and reused rather than regenerated from scratch. On the next step, the new token creates a fresh query and only needs to compare itself against the stored historical keys, then mix the stored values. This is why the cache speeds generation dramatically for long sequences.",
+            "The cost is memory. Cache size grows with sequence length, layer count, hidden dimensions, batch size, and precision, which means a long context can make runtime memory balloon even if the model weights themselves fit comfortably. For local deployment, people often discover that a quantized checkpoint is only half the battle because the KV cache becomes the next bottleneck.",
+            "Serving systems handle that tradeoff in several ways: lower precision caches, shorter context limits, grouped-query or multi-query attention, prompt caching, sequence batching, or offloading memory across devices. The right choice depends on whether your bottleneck is time to first token, tokens per second, concurrency, or total memory on the target machine."
+          ],
+          "callout": {
+            "label": "Operational reality",
+            "tone": "warning",
+            "text": "On long prompts, deployment often becomes a story about KV-cache memory, not just model-weight size."
+          },
+          "links": [
+            {
+              "label": "Review the Q, K, and V pieces first",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "qkv-and-self-attention",
+              "reason": "The cache only makes sense once you see that keys and values are the reusable outputs of prior tokens."
+            },
+            {
+              "label": "Connect this to small-device model choices",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "Memory-constrained deployment has to budget both weights and cache, not just one of them."
+            },
+            {
+              "label": "Measure the production tradeoffs",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "Cache policy changes often show up as latency, throughput, and concurrency tradeoffs in serving metrics."
             }
           ]
         }
@@ -689,7 +947,9 @@
       "connections": [
         "tokens-and-context",
         "prompting-and-outputs",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "scaling-compression-and-open-models",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 58,
@@ -726,6 +986,12 @@
               "label": "Review where those habits still break",
               "targetChapterId": "limits-and-failure-modes",
               "reason": "Many failure modes are easiest to understand once you see how capability emerges from statistical compression instead of explicit understanding."
+            },
+            {
+              "label": "See how model families are planned",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "training-model-families-at-multiple-sizes",
+              "reason": "Large-scale pretraining decisions are usually made as part of a multi-size model family rather than one isolated run."
             }
           ]
         },
@@ -857,6 +1123,205 @@
               "targetChapterId": "prompting-and-outputs",
               "targetSectionId": "task-decomposition-and-routing",
               "reason": "Decomposition and routing can improve control, but they also create new boundaries where alignment assumptions must be checked."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scaling-compression-and-open-models",
+      "title": "Scaling, compression, and open-weight models",
+      "summary": "This chapter explains how teams compare dense and MoE designs, train model families at several sizes, shrink models for small-memory devices, and customize open weights without confusing capability, policy, and risk.",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Dense and MoE models distribute compute differently, which changes training cost, serving behavior, and parameter counts.",
+        "Large labs usually train model families with shared data recipes, shared evals, and smaller proxy runs before paying for the largest checkpoints.",
+        "Making a model fit on limited memory requires thinking about weights, KV cache, precision, architecture, and serving strategy together.",
+        "Open-weight customization is safest when done in layers: prompts and retrieval first, adapters next, and broad checkpoint or policy changes only with clear governance."
+      ],
+      "connections": [
+        "inside-the-transformer-runtime",
+        "training-and-alignment",
+        "evaluation-and-operations",
+        "limits-and-failure-modes"
+      ],
+      "mapPosition": {
+        "x": 72,
+        "y": 14
+      },
+      "sections": [
+        {
+          "id": "dense-vs-moe-models",
+          "heading": "Dense models and MoE models make different scaling bets",
+          "lede": "A dense model uses all of its main weights on every token, while a mixture-of-experts model keeps extra expert capacity on standby and routes each token through only a few experts.",
+          "body": [
+            "In a dense transformer, every token flows through the same attention and MLP blocks all the way down the stack. If the model has 70 billion parameters, the active compute per token reflects that full dense path. This makes the architecture conceptually simple and often easier to train and serve predictably, though the cost rises quickly as the model gets wider and deeper.",
+            "In an MoE design, some of the feed-forward layers are replaced with several experts plus a router. The router decides which small subset of experts should handle each token, often top-1 or top-2. That means the model can advertise a very large total parameter count while activating only part of that capacity per token, which can improve the capability-to-compute tradeoff if routing and infrastructure are handled well.",
+            "The tradeoff is operational complexity. MoE training has to keep experts balanced enough that a few do not become overloaded or underused, and serving needs routing-aware batching and communication across accelerators. Dense models are easier to reason about, while MoE models are often a bet that more sparse capacity is worth the extra systems complexity."
+          ],
+          "callout": {
+            "label": "Scaling tradeoff",
+            "tone": "insight",
+            "text": "Total parameters and active parameters are not the same thing. MoE makes that distinction impossible to ignore."
+          },
+          "links": [
+            {
+              "label": "Reconnect this to the transformer block",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "ffn-mlp-and-residual-path",
+              "reason": "MoE usually swaps the dense FFN path for routed experts, so the MLP section is the right prerequisite."
+            },
+            {
+              "label": "See how large training stages shape these choices",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "pretraining-shape",
+              "reason": "Architecture choice only matters because huge pretraining runs amplify its strengths and weaknesses."
+            },
+            {
+              "label": "Measure whether the extra complexity is paying off",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "MoE can shift both serving economics and runtime bottlenecks, so teams need hard numbers rather than headline parameter counts."
+            }
+          ]
+        },
+        {
+          "id": "training-model-families-at-multiple-sizes",
+          "heading": "How large labs train several model sizes at once",
+          "lede": "Big companies rarely guess one perfect model size. They build a recipe, test it on smaller runs, and train a family of checkpoints so product teams can trade off cost and quality later.",
+          "body": [
+            "A common pattern is to keep the tokenizer, data pipeline, objective, and evaluation suite mostly fixed while varying width, depth, context length, or expert count across several runs. Smaller models act as fast feedback loops for data cleaning, curriculum changes, optimizer settings, and architecture tweaks. Once the recipe looks healthy at that scale, the lab spends serious compute on the larger siblings.",
+            "This family approach is also how scaling laws become practical. Teams compare training loss, evaluation results, and inference economics across a ladder such as 3B, 8B, 34B, and 70B or across dense and MoE variants. The goal is not only to discover the strongest frontier checkpoint but also to populate a portfolio so products can route simpler requests to cheaper models and reserve the largest model for the hardest work.",
+            "Running those experiments in parallel requires shared infrastructure: common data versions, repeatable launch templates, distributed training stacks, and centralized evaluation dashboards. Smaller models may even serve as teachers, rerankers, or distillation targets for the rest of the family. In other words, training multiple sizes is not wasteful duplication; it is how labs turn scaling into a controllable product strategy instead of a single expensive bet."
+          ],
+          "callout": {
+            "label": "Portfolio mindset",
+            "tone": "note",
+            "text": "A frontier lab usually wants a model family, not one hero checkpoint, because product workloads vary more than benchmark headlines suggest."
+          },
+          "links": [
+            {
+              "label": "Connect this to training objectives and data curation",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "data-quality-and-objectives",
+              "reason": "A shared recipe across sizes only works if data and objectives are versioned and comparable."
+            },
+            {
+              "label": "See why routing between models matters later",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "Model families become most valuable when products can route work by difficulty, latency, and cost."
+            },
+            {
+              "label": "Compare with the dense versus MoE decision",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "dense-vs-moe-models",
+              "reason": "Labs often evaluate several sizes across both dense and sparse designs before choosing what to ship."
+            }
+          ]
+        },
+        {
+          "id": "shrinking-models-for-small-memory-devices",
+          "heading": "How to shrink models for small-memory devices",
+          "lede": "Making an LLM run on a laptop, phone, or edge device is mostly a memory-budget problem with quality tradeoffs attached.",
+          "body": [
+            "The first budget is the weights themselves. Lower precision formats such as 8-bit, 6-bit, or 4-bit quantization can cut memory dramatically, often with smaller quality loss than newcomers expect. Distillation goes further by training a smaller student model to imitate a larger teacher, while pruning, vocabulary changes, and architecture choices such as grouped-query attention can remove some cost from the design itself.",
+            "The second budget is runtime state. Activations matter during training, but for inference on long prompts the KV cache often becomes the deciding factor. That is why a model that seems to fit on paper can still crash or slow down badly once the context grows. Reducing context limits, using lower-precision caches, lowering batch size, or offloading layers can matter as much as compressing the checkpoint.",
+            "The right strategy depends on the product. A local note assistant may accept lower throughput and smaller context in exchange for privacy, while an on-device coding tool may prioritize decode speed and thus choose a smaller dense model over a larger but sparsity-heavy design. Compression is not one trick; it is a stack of compromises across weights, cache, context, and user expectations."
+          ],
+          "callout": {
+            "label": "Deployment rule",
+            "tone": "warning",
+            "text": "A quantized model that fits in memory can still fail as a product if the KV cache, context window, or decode speed no longer match the user task."
+          },
+          "links": [
+            {
+              "label": "Review the runtime memory story first",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "Small-device deployment depends on cache growth just as much as on checkpoint size."
+            },
+            {
+              "label": "Relate this to model-family strategy",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "training-model-families-at-multiple-sizes",
+              "reason": "Teams often train or select smaller siblings precisely because compression alone is not always enough."
+            },
+            {
+              "label": "Measure the user-facing tradeoffs",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "Local deployability only matters if latency, quality, and context limits still support the product task."
+            }
+          ]
+        },
+        {
+          "id": "customizing-open-weight-models",
+          "heading": "How to customize an open-weight model without overdoing it",
+          "lede": "Open weights give you more control, but the safest path is usually layered adaptation rather than immediately rewriting the full checkpoint.",
+          "body": [
+            "The first layer is outside the weights: system prompts, retrieval, tool design, structured outputs, and guardrails. Many teams discover that the model is already competent enough once the right evidence is retrieved and the interface narrows the job. These changes are cheap to iterate, easy to roll back, and measurable through normal evals.",
+            "The second layer is lightweight parameter tuning. Adapters such as LoRA or QLoRA let a team teach domain style, schema discipline, or company-specific jargon without retraining every parameter. This is often the sweet spot when the base model is close to good enough but needs sharper behavior on internal tasks or a stable house style.",
+            "Full fine-tuning, continual pretraining, or checkpoint merging belong to the third layer because they change the model more deeply and can introduce regressions that are expensive to detect. Strong teams therefore customize open models in order: fix the workflow first, then add small weight changes, and only then consider broad model rewrites if the evidence says the lighter levers are insufficient."
+          ],
+          "callout": {
+            "label": "Customization ladder",
+            "tone": "insight",
+            "text": "The cheapest reliable improvement often comes from changing context and interfaces before changing the core weights."
+          },
+          "links": [
+            {
+              "label": "Start with prompt and schema control",
+              "targetChapterId": "prompting-and-outputs",
+              "targetSectionId": "structured-output-and-tools",
+              "reason": "Many customization goals are really interface and workflow problems before they are model-weight problems."
+            },
+            {
+              "label": "Compare with retrieval-based grounding",
+              "targetChapterId": "retrieval-tools-and-agents",
+              "targetSectionId": "rag-before-finetune",
+              "reason": "Fresh or private knowledge is often better solved by retrieval than by more weight updates."
+            },
+            {
+              "label": "Carry changes into measurement and rollback",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "release-and-rollback-routines",
+              "reason": "Open-weight customization is only safe when the team can compare versions and reverse regressions quickly."
+            }
+          ]
+        },
+        {
+          "id": "uncensoring-open-models-and-risk",
+          "heading": "What people mean by uncensoring a model, and why teams should be careful",
+          "lede": "In open-model communities, uncensoring usually means reducing refusal behavior or safety shaping, but that changes the risk surface much more than the phrase suggests.",
+          "body": [
+            "Sometimes the request really means choosing a base checkpoint instead of an instruct checkpoint, using different post-training data, or relaxing policy-heavy system prompts for a narrow internal task. Those changes can reduce false refusals on benign work, but they do not create better truthfulness, better judgment, or better security. They mostly remove one layer of behavioral shaping.",
+            "The danger is that the same change can also make harmful, abusive, or noncompliant outputs easier to elicit. In a company setting, this is not just a style preference; it is a governance question involving legal exposure, misuse risk, and auditability. If the real problem is over-refusal on safe internal workflows, the better response is usually targeted policy tuning, narrower tool permissions, or domain-specific adapters rather than a broad attempt to strip safeguards everywhere.",
+            "A useful engineering rule is to diagnose the smallest layer causing the problem. If moderation is too aggressive, adjust moderation. If the instruct tuning is too generic, add domain tuning. If the workflow needs fewer refusals for trusted users, scope that policy to a private environment with logging and approvals. Treating uncensoring as a blanket goal is usually a sign that capability, permission, and safety have been mixed together in an unhelpful way."
+          ],
+          "callout": {
+            "label": "Governance warning",
+            "tone": "warning",
+            "text": "Reducing refusal behavior is a policy decision with security and misuse consequences, not a neutral quality upgrade."
+          },
+          "links": [
+            {
+              "label": "Revisit alignment after pretraining",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "instruction-tuning-and-preference",
+              "reason": "Refusal behavior often comes from the post-training stages that teach models how a product wants answers to look."
+            },
+            {
+              "label": "See how boundary enforcement still matters",
+              "targetChapterId": "limits-and-failure-modes",
+              "targetSectionId": "prompt-injection-and-data-exfiltration",
+              "reason": "Reducing model-side restraint does not remove the need for strict application security and trust boundaries."
+            },
+            {
+              "label": "Prefer measured customization over blanket removal",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "customizing-open-weight-models",
+              "reason": "Layered customization gives teams finer control than a broad push to make the whole model less restrictive."
             }
           ]
         }
@@ -1239,7 +1704,8 @@
         "embedding-intuition",
         "prompting-and-outputs",
         "retrieval-tools-and-agents",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "scaling-compression-and-open-models"
       ],
       "mapPosition": {
         "x": 78,
@@ -1335,6 +1801,12 @@
               "label": "Remember the base context window is finite",
               "targetChapterId": "tokens-and-context",
               "reason": "Everything you include competes for the same working memory budget."
+            },
+            {
+              "label": "Study the runtime internals behind these tradeoffs",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "prefill-and-decode-runtime",
+              "reason": "Latency and throughput become easier to optimize once you separate prompt prefill from decode behavior."
             }
           ]
         },
@@ -1420,7 +1892,8 @@
       "connections": [
         "what-is-an-llm",
         "training-and-alignment",
-        "evaluation-and-operations"
+        "evaluation-and-operations",
+        "scaling-compression-and-open-models"
       ],
       "mapPosition": {
         "x": 84,

@@ -2,9 +2,9 @@
   "id": "fundamentals-of-llms-zh-hant",
   "title": "LLM 的基本原理",
   "subtitle": "從日常直覺到生產系統",
-  "description": "一本以生產實務為導向的大型語言模型指南，從下一個 token 預測與 transformer 出發，延伸到 prompting、檢索、評估、部署與安全。",
+  "description": "一本以生產實務為導向的大型語言模型指南，從下一個 token 預測與 transformer 出發，延伸到推論 runtime、模型壓縮、開放權重客製化、評估、部署與安全。",
   "coverEmoji": "🧠",
-  "durationMinutes": 149,
+  "durationMinutes": 187,
   "tags": [
     "AI 素養",
     "LLMs",
@@ -68,6 +68,31 @@
       "concept": "高風險場景需要交接",
       "reminder": "人工審查、abstention 與可逆操作是產品功能，不是失敗的承認。",
       "useWhen": "當系統可能影響金錢、權利、安全、隱私或存取權時使用。"
+    },
+    {
+      "concept": "Q、K、V 各司其職",
+      "reminder": "Query 表示當前 token 想找什麼，key 表示前文有哪些可對齊訊號，value 則攜帶真正會被混入的內容。",
+      "useWhen": "當 attention 聽起來太神祕，而你需要一個可操作的 token 查找心智模型時使用。"
+    },
+    {
+      "concept": "FFN 是逐 token 的計算層",
+      "reminder": "Attention 負責跨 token 混合資訊之後，feed-forward network 會在每個 token 本地重塑特徵，很多模型能力都藏在這裡。",
+      "useWhen": "當你要解釋 transformer 不只是 attention，或為什麼 MLP 大小會影響能力時使用。"
+    },
+    {
+      "concept": "KV cache 用記憶體換速度",
+      "reminder": "在 decode 階段，runtime 會保留歷史 key 與 value，避免每產生一個 token 都把整段 prompt 全算一次。",
+      "useWhen": "當服務在長對話或大 context 下變慢、變吃記憶體時使用。"
+    },
+    {
+      "concept": "Dense 與 MoE 的算力交易不同",
+      "reminder": "Dense 模型每個 token 都啟動所有權重，MoE 則只路由到少數 experts，因此能提高總容量而不必等比例提高每 token 計算。",
+      "useWhen": "當你在比較模型家族、推論成本，或理解為什麼總參數很大但單 token 計算沒那麼大時使用。"
+    },
+    {
+      "concept": "客製開放權重要分層下手",
+      "reminder": "先試 prompting、retrieval、tools 與 adapters，再考慮 full fine-tuning 或直接改 checkpoint。",
+      "useWhen": "當開放模型已經接近可用，而你需要選擇風險最小的調整手段時使用。"
     }
   ],
   "appendix": [
@@ -113,6 +138,46 @@
         "把壞掉的生產案例納入 golden dataset，作為下一版釋出的材料。",
         "任何高風險或不可逆的動作之前，都先加入人工核准。"
       ]
+    },
+    {
+      "title": "Mind map routes",
+      "items": [
+        "架構深潛路線：LLM 是什麼 -> Token、context 與 attention -> Transformer 與推論 runtime 的內部結構 -> 模型擴張、壓縮與開放權重模型。",
+        "建造者路線：LLM 是什麼 -> Token、context 與 attention -> Transformer 與推論 runtime 的內部結構 -> Prompting、結構化輸出與控制 -> Retrieval、工具與 agents。",
+        "模型策略路線：模型如何訓練與對齊 -> 模型擴張、壓縮與開放權重模型 -> 評估、成本與營運 -> 限制、風險與失效模式。"
+      ]
+    },
+    {
+      "title": "Plain-language glossary",
+      "items": [
+        "Self-attention：讓每個 token 決定前文哪些 token 對自己最重要的機制。",
+        "Query、key、value：attention 裡三個學得的投影，用來評估相關性並混合資訊。",
+        "FFN 或 MLP：在 attention 之後，逐 token 轉換表示的前饋層。",
+        "KV cache：保存歷史 token 的 key 與 value，以加速自回歸解碼。",
+        "Dense model：每個 token 都會啟動整層權重的模型。",
+        "MoE：mixture of experts，會針對每個 token 只啟動部分 expert 子網路。",
+        "Quantization：用更少 bit 儲存權重，以降低記憶體需求並提升本地部署可行性。",
+        "Open-weight model：依據特定授權公開權重，可供下載與執行的模型。",
+        "LoRA：以低秩 adapter 改變模型行為，而不是重寫全部權重的技術。"
+      ]
+    },
+    {
+      "title": "Sample code patterns",
+      "items": [
+        "Attention 草圖：scores = softmax((Q @ K_transpose) / sqrt(head_dim)); mixed = scores @ V。",
+        "Serving 草圖：prefill(prompt_tokens) -> decode(next_token, kv_cache) -> append -> stop_if(eos)。",
+        "量化部署草圖：weights = load_4bit(model_path); answer = runtime.generate(prompt, max_new_tokens=256)。",
+        "Adapter 微調草圖：base = load_model(); lora = train_adapter(base, instruction_data); merged = merge_if_needed(base, lora)。"
+      ]
+    },
+    {
+      "title": "Production heuristics",
+      "items": [
+        "估算記憶體時要把 weights、KV cache 與 runtime overhead 一起算，而不是只看權重大小。",
+        "先用小型 proxy model 與共享 eval 學習哪些資料與目標值得投入更大的訓練成本。",
+        "優先選擇能解決問題的最窄客製層；大範圍 checkpoint 改動會提高營運風險。",
+        "把讓模型變得更少限制的需求視為政策變更，而不只是語氣微調。"
+      ]
     }
   ],
   "chapters": [
@@ -129,7 +194,8 @@
       ],
       "connections": [
         "tokens-and-context",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 14,
@@ -313,7 +379,8 @@
       "connections": [
         "what-is-an-llm",
         "training-and-alignment",
-        "prompting-and-outputs"
+        "prompting-and-outputs",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 38,
@@ -417,6 +484,12 @@
               "label": "看看訓練背景",
               "targetChapterId": "training-and-alignment",
               "reason": "形成這些關聯權重模式的能力，是在大規模訓練中學來的。"
+            },
+            {
+              "label": "更深入看 Q、K、V",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "qkv-and-self-attention",
+              "reason": "這個加深章節會把 attention 圖像展開成每個 head 內實際使用的學習組件。"
             }
           ]
         },
@@ -450,6 +523,12 @@
               "label": "看看 prompt 作者能控制什麼",
               "targetChapterId": "prompting-and-outputs",
               "reason": "Prompt 設計就是在塑造這些 block 反覆轉換的 token 模式。"
+            },
+            {
+              "label": "把 block 內部打開來看",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "ffn-mlp-and-residual-path",
+              "reason": "加深章節會更明確地說明 FFN 與 residual path 對基本 block 草圖的貢獻。"
             }
           ]
         },
@@ -482,6 +561,205 @@
               "label": "在營運中量測影響",
               "targetChapterId": "evaluation-and-operations",
               "reason": "Ablation test 與 trace 檢閱能顯示在真實負載與噪音下，哪些指令仍然存活。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inside-the-transformer-runtime",
+      "title": "Transformer 與推論 runtime 的內部結構",
+      "summary": "本章把模型打開來看：token embedding、Q/K/V attention、feed-forward 層、prefill 與 decode，以及讓現代 serving 足夠快的 KV cache。",
+      "estimatedMinutes": 18,
+      "keyIdeas": [
+        "一個 LLM checkpoint 通常包含 token embedding、很多 transformer blocks、normalization layers 與把隱狀態投影回詞彙表的 output head。",
+        "Self-attention 透過 queries、keys、values 決定哪些前文 token 應該影響目前 token 的表示。",
+        "FFN 或 MLP 會在 context 混合之後，對每個 token 做非線性轉換，所以 transformer block 不只是 attention。",
+        "推論可分成 prefill 與 decode，KV cache 會透過重用先前 attention 狀態來加速 decode。"
+      ],
+      "connections": [
+        "what-is-an-llm",
+        "tokens-and-context",
+        "training-and-alignment",
+        "scaling-compression-and-open-models"
+      ],
+      "mapPosition": {
+        "x": 46,
+        "y": 34
+      },
+      "sections": [
+        {
+          "id": "what-is-inside-a-checkpoint",
+          "heading": "一個現代 LLM checkpoint 裡面有什麼",
+          "lede": "很多人說模型時像在指一個檔名，但 checkpoint 其實包含幾個重複組件，會把 token IDs 一路轉成下一個 token 的機率分佈。",
+          "body": [
+            "解碼式 LLM 通常先從 token embedding table 開始，把 token IDs 映射成向量，再堆疊許多 transformer blocks，最後接一層 normalization，並透過 output head 投影回詞彙 logits。最簡草圖是 token_ids -> embeddings -> blocks x N -> norm -> logits -> sample_next_token。當人們說 7B 或 70B 時，指的就是這些層裡的參數數量。",
+            "這些組件並不是神祕黑盒。Tokenizer 決定有哪些 token IDs，embedding matrix 給每個 token 一個起始向量，位置資訊告訴模型 token 在序列中的位置，而每個 block 會反覆把這些向量更新成更豐富的內部表示。等到產生 logits 時，模型並不是從儲存空間取出一句話，而是把目前 hidden state 轉成整個詞彙表上的分數。",
+            "這樣拆開看很重要，因為各部分消耗的記憶體與算力不同。Embedding table 會跟詞彙表大小一起放大，transformer blocks 主導大多數參數與浮點運算，output projection 也可能很大。用組件思維來理解，之後像 quantization、grouped-query attention 或 adapter tuning 才比較容易推理。"
+          ],
+          "callout": {
+            "label": "Checkpoint 視角",
+            "tone": "insight",
+            "text": "LLM 不是一團不可分的 blob，而是一疊學得的矩陣，會先把 token 向量反覆變好，再去預測下一個 token。"
+          },
+          "links": [
+            {
+              "label": "回到下一個 token 迴圈",
+              "targetChapterId": "what-is-an-llm",
+              "targetSectionId": "predicting-next-token",
+              "reason": "把 checkpoint 佈局重新連回生成迴圈後，整體結構會更容易理解。"
+            },
+            {
+              "label": "接回 tokenization 與 context",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "text-becomes-tokens",
+              "reason": "Embedding 是在文字先被切成 token IDs 之後才開始運作。"
+            },
+            {
+              "label": "接著看模型大小與部署取捨",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "知道哪些組件昂貴之後，才更容易理解記憶體最佳化。"
+            }
+          ]
+        },
+        {
+          "id": "qkv-and-self-attention",
+          "heading": "用白話看懂 Q、K、V 與 self-attention",
+          "lede": "只要把 self-attention 想成每個 token 在問自己需要什麼、掃描前文提供了什麼，再借回正確資訊，它就不再那麼抽象。",
+          "body": [
+            "在每個 attention head 裡，每個 token 的 hidden state 都會被投影成三個學得的向量，分別叫做 query、key 與 value。Query 表示這個 token 現在想找什麼，key 表示另一個 token 能提供什麼訊號，value 則攜帶如果它重要時真正會被混入的內容。核心草圖是 scores = softmax((Q @ K_transpose) / sqrt(head_dim)); mixed = scores @ V。",
+            "因為模型是自回歸的，decoder 中每個位置只能 attend 到自己與更早的位置。這個 masking 規則讓它變成適用於生成的 self-attention，而不是偷看未來。Multi-head attention 則會用多個較小的 heads 重複這個過程，因此某些 head 可以偏向語法，某些偏向長距離指涉，某些偏向格式或位置，而不是只靠單一相關性定義。",
+            "Q、K、V 不是人工指定固定意義的符號，而是訓練中學出來的線性投影，因此不同 heads 會出現令人意外的專門化。不過 query 在發問、key 在表明、value 在攜帶內容這套故事，已足夠用來除錯 prompts、理解為什麼埋得太深的指令會失效，以及看懂為什麼長 context 既帶來可能性，也帶來更難的選擇問題。"
+          ],
+          "callout": {
+            "label": "Attention 圖像",
+            "tone": "note",
+            "text": "Query 在問、key 在配對、value 在交付內容。這個模式已經能解釋 transformer 如何重用前文。"
+          },
+          "links": [
+            {
+              "label": "對照較短版的 attention 直覺",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "attention-in-one-page",
+              "reason": "這一節把較簡化的注意力直覺展開成實際的 Q、K、V 分工。"
+            },
+            {
+              "label": "看看為什麼指令順序重要",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "instruction-order-and-salience",
+              "reason": "顯著性問題往往就是 attention 把錯的前文權重拉高。"
+            },
+            {
+              "label": "接到推論速度與 KV cache",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "KV cache 會把這些歷史 keys 與 values 存下來，避免每步都重算。"
+            }
+          ]
+        },
+        {
+          "id": "ffn-mlp-and-residual-path",
+          "heading": "為什麼 FFN 跟 attention 一樣重要",
+          "lede": "Attention 會在 token 之間混合資訊，但 feed-forward network 才是每個 token 經過較大非線性轉換、重新塑形的地方。",
+          "body": [
+            "在 attention 把其他 token 的資訊混進來之後，block 通常會再把每個 token 單獨送進一個 position-wise feed-forward network，也常叫做 MLP。這個子層會對每個 token 套用同樣的學習函數，通常先擴張到更大的 hidden size，經過非線性，再投影回原本維度。草圖可寫成 y = W2 * activation(W1 * x)，但它是逐 token 執行的。",
+            "這個局部轉換比很多入門介紹更重要。Attention 很擅長路由與混合，但 FFN 才是真正把混合後表示彎成下一層可用特徵的地方，例如潛在概念、決策邊界或可重用的程式模式。許多分析都指出，大量模型記憶的 feature 與任務偏好，可能更多藏在這些 MLP 權重裡，而不是只在 attention。",
+            "Residual connection 與 normalization 則讓整個深層堆疊可訓練。Residual path 讓網路以增量方式加上更新，而不是每次把 token 全部重寫；normalization 則讓 activations 維持在深度訓練仍穩定的範圍內。因此較真實的 transformer 心智模型是：先跨 token 混合，再在 token 內轉換，把更新加回去，然後重複很多次。"
+          ],
+          "callout": {
+            "label": "架構修正",
+            "tone": "insight",
+            "text": "如果你把 transformer 想成只有 attention，就漏掉了 block 的一半，也漏掉了很多特徵形成能力。"
+          },
+          "links": [
+            {
+              "label": "回到高層 block 直覺",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "transformer-block-intuition",
+              "reason": "看完 FFN 的角色之後，再回去看簡化版 block 草圖會更紮實。"
+            },
+            {
+              "label": "把架構接回 pretraining 規模",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "pretraining-shape",
+              "reason": "大規模訓練會讓 attention 與 MLP 在多層中學會協同工作。"
+            },
+            {
+              "label": "看看小裝置怎麼擠壓這整疊 block",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "壓縮策略常直接作用在這些重複的 attention 加 MLP 模組上。"
+            }
+          ]
+        },
+        {
+          "id": "prefill-and-decode-runtime",
+          "heading": "推論 runtime 如何運作：先 prefill，再 decode",
+          "lede": "Serving LLM 並不是一種均勻的計算。Runtime 通常會先付出一次較重的 prompt 前向計算，再進入較小、重複的逐 token 生成迴圈。",
+          "body": [
+            "第一階段通常叫 prefill。Runtime 會先 tokenize prompt，讓它通過所有 layers，建立生成所需的 hidden states、keys 與 values。Prefill 成本會跟 prompt 長度一起成長，因此很長的 context 常會讓系統在第一個 token 出來之前就先卡住，即使後面的 decode 很快。",
+            "Prefill 完成後才進入 decoding。每個新 token 都會被附加到序列末端，模型再跑一次自回歸步驟，sampler 依 temperature、top-p、repetition penalties 或 grammar 約束選出下一個 token。可見的聊天體驗因此更像是先消化整個 prompt 一次，再逐 token 延續，而不是每次都從零重算。",
+            "理解這兩階段能幫助團隊除錯延遲。若 time-to-first-token 很慢，通常是 prompt 太長、retrieval 插入太多內容、或 prompt 端格式太重。若生成開始後 tokens-per-second 很慢，則更常指向模型大小、硬體極限、cache 壓力、quantization 選擇，或 serving engine 的 batching 策略。"
+          ],
+          "callout": {
+            "label": "Serving 經驗法則",
+            "tone": "note",
+            "text": "第一個 token 的等待時間與後續 decode 速度，是兩個不同問題，應該分開量測與最佳化。"
+          },
+          "links": [
+            {
+              "label": "把 prompt 長度接回 context 預算",
+              "targetChapterId": "tokens-and-context",
+              "targetSectionId": "context-window-budget",
+              "reason": "Prefill 階段會把長 prompt 直接轉成延遲與記憶體成本。"
+            },
+            {
+              "label": "把 runtime 行為接到成本營運",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "營運工作通常要把 prompt 端與 decode 端的延遲分開分析。"
+            },
+            {
+              "label": "接著看 KV cache 取捨",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "KV cache 是 decode 能比重跑整段 prompt 便宜很多的主因之一。"
+            }
+          ]
+        },
+        {
+          "id": "kv-cache-explained",
+          "heading": "什麼是 KV cache，為什麼它主導 serving 取捨",
+          "lede": "KV cache 會把每層歷史 token 的 keys 與 values 存下來，讓模型在持續 decode 時不必每一步都把整段 prompt 的 attention 全重算。",
+          "body": [
+            "在自回歸 decode 中，舊 token 不會改變，因此它們在每一層對應的 keys 與 values 也可以保存並重用，而不必從頭生成。下一步只需要讓新 token 產生 fresh query，去對比已存好的歷史 keys，再混合對應的 values。這就是為什麼 cache 能在長序列下大幅加速生成。",
+            "代價是記憶體。Cache 大小會隨序列長度、層數、hidden dimensions、batch size 與 precision 一起增長，因此 context 一長，runtime 記憶體就可能暴增，即使模型權重本身看起來還裝得下。很多人在本地部署時會發現，量化 checkpoint 只是成功的一半，下一個瓶頸就是 KV cache。",
+            "Serving 系統會用不同方法處理這個取捨，例如較低精度的 cache、較短的 context limit、grouped-query 或 multi-query attention、prompt caching、sequence batching，或把部分記憶體跨裝置卸載。正確選擇取決於你的瓶頸是第一個 token 的等待時間、tokens per second、並發量，還是目標機器的總記憶體。"
+          ],
+          "callout": {
+            "label": "營運現實",
+            "tone": "warning",
+            "text": "在長 prompt 下，部署故事常常不是模型權重有多大，而是 KV cache 記憶體怎麼失控。"
+          },
+          "links": [
+            {
+              "label": "先回看 Q、K、V 的角色",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "qkv-and-self-attention",
+              "reason": "只有先理解 keys 與 values 是可重用的歷史輸出，cache 才會說得通。"
+            },
+            {
+              "label": "接到小記憶體裝置的模型選擇",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "shrinking-models-for-small-memory-devices",
+              "reason": "記憶體受限部署必須同時預算權重與 cache，而不是只看其中一個。"
+            },
+            {
+              "label": "把取捨帶進生產量測",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "Cache 策略常直接表現在延遲、吞吐量與並發量上。"
             }
           ]
         }
@@ -689,7 +967,9 @@
       "connections": [
         "tokens-and-context",
         "prompting-and-outputs",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "scaling-compression-and-open-models",
+        "inside-the-transformer-runtime"
       ],
       "mapPosition": {
         "x": 58,
@@ -726,6 +1006,12 @@
               "label": "回顧這些習慣仍會在哪裡失靈",
               "targetChapterId": "limits-and-failure-modes",
               "reason": "當你看到能力是從統計壓縮而不是明確理解中湧現，就更容易理解許多失效模式。"
+            },
+            {
+              "label": "看看模型家族如何被規劃",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "training-model-families-at-multiple-sizes",
+              "reason": "大規模 pretraining 決策通常是在多尺寸模型家族裡一起做，而不是單一孤立 run。"
             }
           ]
         },
@@ -857,6 +1143,205 @@
               "targetChapterId": "prompting-and-outputs",
               "targetSectionId": "task-decomposition-and-routing",
               "reason": "拆解與 routing 能提升控制，但也會創造新的邊界，需要重新檢查 alignment 假設。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scaling-compression-and-open-models",
+      "title": "模型擴張、壓縮與開放權重模型",
+      "summary": "本章說明團隊如何比較 dense 與 MoE 設計、在多種尺寸上訓練模型家族、讓模型塞進小記憶體裝置，以及如何客製 open weights 而不把能力、政策與風險混為一談。",
+      "estimatedMinutes": 20,
+      "keyIdeas": [
+        "Dense 與 MoE 模型分配計算的方式不同，因此會改變訓練成本、serving 行為與參數量的解讀。",
+        "大型實驗室通常會用共享資料配方、共享 eval 與較小的 proxy runs，先學會 recipe，再投入最大的 checkpoint。",
+        "要讓模型 fit 進有限記憶體，必須同時考慮權重、KV cache、precision、架構與 serving 策略。",
+        "客製 open-weight 模型時，最安全的順序通常是先改 prompt 與 retrieval，再用 adapters，最後才考慮大範圍 checkpoint 或政策改動。"
+      ],
+      "connections": [
+        "inside-the-transformer-runtime",
+        "training-and-alignment",
+        "evaluation-and-operations",
+        "limits-and-failure-modes"
+      ],
+      "mapPosition": {
+        "x": 72,
+        "y": 14
+      },
+      "sections": [
+        {
+          "id": "dense-vs-moe-models",
+          "heading": "Dense model 與 MoE model 在做不同的擴張賭注",
+          "lede": "Dense 模型會在每個 token 上啟用主要權重；mixture-of-experts 則把額外容量放在多個 experts，並只讓每個 token 通過少數 experts。",
+          "body": [
+            "在 dense transformer 裡，每個 token 都會穿過同一條 attention 與 MLP 路徑。如果模型有 700 億參數，那每個 token 的活躍計算就反映這條完整 dense path。這種架構概念上較簡單，訓練與 serving 往往也比較可預期，但模型變寬、變深之後，成本會快速上升。",
+            "在 MoE 設計中，一些 feed-forward layers 會被多個 experts 加上一個 router 取代。Router 會決定每個 token 應該走哪幾個 experts，常見是 top-1 或 top-2。這代表模型可以宣稱非常大的總參數量，但每個 token 真正啟動的只是一部分容量。如果 routing 與基礎設施處理得好，這能改善能力與計算量的比例。",
+            "代價是營運複雜度。MoE 訓練必須維持 experts 足夠平衡，避免少數 experts 過載或閒置；serving 也需要理解 routing 的 batching 與跨加速器通訊。Dense 模型比較好推理，而 MoE 模型則是在押注：更多稀疏容量值得那些額外的系統成本。"
+          ],
+          "callout": {
+            "label": "擴張取捨",
+            "tone": "insight",
+            "text": "總參數量與活躍參數量不是一回事。MoE 會逼你正視這個差異。"
+          },
+          "links": [
+            {
+              "label": "把它接回 transformer block",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "ffn-mlp-and-residual-path",
+              "reason": "MoE 通常是把 dense FFN 路徑換成經過路由的 experts，所以最好先理解 MLP 的角色。"
+            },
+            {
+              "label": "看看大規模訓練如何放大這些選擇",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "pretraining-shape",
+              "reason": "架構選擇之所以重要，是因為大規模 pretraining 會把優缺點一併放大。"
+            },
+            {
+              "label": "量測這些複雜度到底值不值得",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "MoE 會改變 serving 經濟與 runtime 瓶頸，因此需要看硬數字，而不是只看參數標題。"
+            }
+          ]
+        },
+        {
+          "id": "training-model-families-at-multiple-sizes",
+          "heading": "大型實驗室如何同時訓練多種尺寸的模型家族",
+          "lede": "大公司很少只猜一個完美尺寸。他們會先做出 recipe，用較小的 run 測試，再訓練整個 checkpoint 家族，讓產品團隊之後能在成本與品質間取捨。",
+          "body": [
+            "常見做法是讓 tokenizer、資料 pipeline、訓練目標與評估套件大致固定，只改變 width、depth、context length 或 expert 數量。較小模型會成為快速回饋迴圈，用來驗證資料清洗、課程安排、optimizer 設定與架構調整。等到這套 recipe 在小尺度看起來健康之後，實驗室才會把真正昂貴的算力砸在較大的兄弟模型上。",
+            "模型家族做法也是 scaling laws 能真正落地的方式。團隊會比較像 3B、8B、34B、70B，或 dense 與 MoE 變體之間的訓練 loss、評估結果與推論經濟性。目標不只是找出最強的 frontier checkpoint，而是建立一個組合，讓產品能把簡單請求路由到便宜模型，把最大模型留給最難的工作。",
+            "要平行運行這些實驗，需要共享基礎設施：共同的資料版本、可重複的 launch template、分散式訓練堆疊，以及集中式 eval dashboard。較小模型甚至可以成為教師、reranker 或蒸餾對象。換句話說，同時訓練多種尺寸不是浪費，而是把 scaling 變成可控的產品策略，而不是一次昂貴的單點豪賭。"
+          ],
+          "callout": {
+            "label": "組合心態",
+            "tone": "note",
+            "text": "前沿實驗室通常想要的是一個模型家族，而不是單一英雄 checkpoint，因為產品工作負載比 benchmark 標題更分散。"
+          },
+          "links": [
+            {
+              "label": "把這件事接回資料與目標設計",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "data-quality-and-objectives",
+              "reason": "若資料與目標沒有被版本化且可比較，共享 recipe 就很難跨尺寸工作。"
+            },
+            {
+              "label": "看看後續為什麼要做模型路由",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "模型家族的價值，通常要等產品能依難度、延遲與成本做 routing 才完全顯現。"
+            },
+            {
+              "label": "對照 dense 與 MoE 的決策",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "dense-vs-moe-models",
+              "reason": "實驗室常會在 dense 與 sparse 設計上，同時比較不同尺寸再決定要出貨什麼。"
+            }
+          ]
+        },
+        {
+          "id": "shrinking-models-for-small-memory-devices",
+          "heading": "如何把模型縮到能跑在小記憶體裝置上",
+          "lede": "要讓 LLM 跑在筆電、手機或 edge device 上，本質上大多是一個附帶品質取捨的記憶體預算問題。",
+          "body": [
+            "第一個預算是權重本身。像 8-bit、6-bit 或 4-bit 這類較低精度的 quantization，通常能大幅降低記憶體，而且品質損失往往比新手想像得小。Distillation 會再更進一步，透過讓較小 student 模型模仿較大 teacher；pruning、詞彙表調整，以及 grouped-query attention 等架構選擇，則能從設計面直接移除一部分成本。",
+            "第二個預算是 runtime state。訓練時 activations 很重要，但在長 prompt 的推論裡，真正決定成敗的常是 KV cache。這也是為什麼一個看起來帳面上裝得下的模型，到了長 context 就可能還是會爆掉或慢到不能用。降低 context limit、使用低精度 cache、降低 batch size，或把部分 layers 做 offload，都可能跟壓縮 checkpoint 一樣重要。",
+            "正確策略取決於產品。離線筆記助理可能願意接受較低吞吐量與較短 context，以換取隱私；本地 coding 工具則可能更在乎 decode 速度，因此寧可選擇較小的 dense 模型，而不是較大的稀疏設計。壓縮不是單一技巧，而是一串權重、cache、context 與使用者期待之間的折衷。"
+          ],
+          "callout": {
+            "label": "部署規則",
+            "tone": "warning",
+            "text": "一個量化後能裝進記憶體的模型，仍可能因為 KV cache、context window 或 decode 速度不符合任務而失敗。"
+          },
+          "links": [
+            {
+              "label": "先回看 runtime 記憶體故事",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "kv-cache-explained",
+              "reason": "小裝置部署不只看 checkpoint 大小，也要看 cache 怎麼增長。"
+            },
+            {
+              "label": "把它接回模型家族策略",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "training-model-families-at-multiple-sizes",
+              "reason": "很多團隊之所以要有較小兄弟模型，就是因為壓縮本身並不總是足夠。"
+            },
+            {
+              "label": "量測使用者看得到的取捨",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "latency-cost-and-context-tradeoffs",
+              "reason": "本地可部署只有在延遲、品質與 context 仍支持任務時才有價值。"
+            }
+          ]
+        },
+        {
+          "id": "customizing-open-weight-models",
+          "heading": "如何客製 open-weight 模型而不做過頭",
+          "lede": "Open weights 給你更多控制，但最安全的路通常是分層調整，而不是一開始就重寫整個 checkpoint。",
+          "body": [
+            "第一層是在權重之外：system prompt、retrieval、tool 設計、結構化輸出與 guardrails。很多團隊會發現，只要先把正確證據取回來，並把介面縮成明確工作，模型本身已經夠有能力。這些改動便宜、好回滾，也容易用一般 eval 來量測。",
+            "第二層是輕量參數調整。像 LoRA 或 QLoRA 這類 adapters，可以讓團隊教會模型領域語氣、schema 紀律或公司內部術語，而不需要重訓所有參數。當 base model 已接近可用，但仍需要更銳利的內部任務行為或穩定 house style 時，這通常是甜蜜點。",
+            "Full fine-tuning、continual pretraining 或 checkpoint merging 則屬於第三層，因為它們會更深地改變模型，也更容易帶來昂貴且難察覺的退化。成熟團隊因此會依序客製 open models：先修 workflow，再做小型權重變更，只有在證據顯示較輕手段不夠時，才考慮大規模改寫模型。"
+          ],
+          "callout": {
+            "label": "客製化階梯",
+            "tone": "insight",
+            "text": "最便宜而可靠的改善，往往來自改變 context 與介面，而不是先改核心權重。"
+          },
+          "links": [
+            {
+              "label": "先從 prompt 與 schema 控制開始",
+              "targetChapterId": "prompting-and-outputs",
+              "targetSectionId": "structured-output-and-tools",
+              "reason": "很多客製需求其實先是介面與工作流問題，之後才是模型權重問題。"
+            },
+            {
+              "label": "對照 retrieval 式 grounding",
+              "targetChapterId": "retrieval-tools-and-agents",
+              "targetSectionId": "rag-before-finetune",
+              "reason": "新的或私有知識，通常更適合用 retrieval 解決，而不是追加更多權重更新。"
+            },
+            {
+              "label": "把改動帶進量測與回滾",
+              "targetChapterId": "evaluation-and-operations",
+              "targetSectionId": "release-and-rollback-routines",
+              "reason": "只有團隊能比較版本並快速回退時，open-weight 客製化才算安全。"
+            }
+          ]
+        },
+        {
+          "id": "uncensoring-open-models-and-risk",
+          "heading": "人們說的 uncensoring 是什麼，以及為什麼團隊要小心",
+          "lede": "在 open model 社群裡，uncensoring 通常是指降低拒答或安全塑形，但它改變的風險面其實遠比這個詞聽起來更大。",
+          "body": [
+            "有時這個需求真正的意思，是選擇 base checkpoint 而不是 instruct checkpoint、使用不同的 post-training 資料，或在狹窄的內部任務上放鬆偏政策導向的 system prompts。這些變更確實可能降低對無害工作的誤拒，但它們不會自動帶來更好的真實性、判斷力或安全性。它們主要是在移除其中一層行為塑形。",
+            "危險之處在於，同樣的改動也可能讓有害、濫用或不合規輸出更容易被引出。在公司情境中，這不只是風格偏好，而是涉及法務暴露、濫用風險與可稽核性的治理問題。若真正的痛點是安全內部工作上的過度拒答，更好的解法通常是針對政策做精準調整、縮小工具權限，或做領域 adapter，而不是廣泛地把 safeguard 全拆掉。",
+            "一條實用的工程規則是：找出造成問題的最小層。如果 moderation 太 aggressive，就調 moderation；如果 instruct tuning 太通用，就做領域調整；如果 workflow 只是希望對可信使用者少一點拒答，就把政策限定在有 log 與 approvals 的私有環境。把 uncensoring 當成整體目標，通常表示能力、權限與安全被混在一起了。"
+          ],
+          "callout": {
+            "label": "治理警告",
+            "tone": "warning",
+            "text": "降低拒答行為是一個帶有安全與濫用後果的政策決定，不是中性的品質升級。"
+          },
+          "links": [
+            {
+              "label": "回看 pretraining 之後的 alignment",
+              "targetChapterId": "training-and-alignment",
+              "targetSectionId": "instruction-tuning-and-preference",
+              "reason": "拒答行為通常來自教模型如何回應的 post-training 階段。"
+            },
+            {
+              "label": "看看邊界防護仍然為何重要",
+              "targetChapterId": "limits-and-failure-modes",
+              "targetSectionId": "prompt-injection-and-data-exfiltration",
+              "reason": "降低模型端的克制，並不會消除應用程式安全與信任邊界的需求。"
+            },
+            {
+              "label": "優先選擇可量測的精準客製，而不是全面移除",
+              "targetChapterId": "scaling-compression-and-open-models",
+              "targetSectionId": "customizing-open-weight-models",
+              "reason": "分層客製化能提供比整體去限制更細膩的控制。"
             }
           ]
         }
@@ -1239,7 +1724,8 @@
         "embedding-intuition",
         "prompting-and-outputs",
         "retrieval-tools-and-agents",
-        "limits-and-failure-modes"
+        "limits-and-failure-modes",
+        "scaling-compression-and-open-models"
       ],
       "mapPosition": {
         "x": 78,
@@ -1335,6 +1821,12 @@
               "label": "記得基礎 context window 是有限的",
               "targetChapterId": "tokens-and-context",
               "reason": "你放進去的每樣東西，都在爭奪同一份工作記憶預算。"
+            },
+            {
+              "label": "回頭看支撐這些取捨的 runtime 內部",
+              "targetChapterId": "inside-the-transformer-runtime",
+              "targetSectionId": "prefill-and-decode-runtime",
+              "reason": "一旦把 prompt prefill 與 decode 行為拆開，延遲與吞吐量就更容易優化。"
             }
           ]
         },
@@ -1420,7 +1912,8 @@
       "connections": [
         "what-is-an-llm",
         "training-and-alignment",
-        "evaluation-and-operations"
+        "evaluation-and-operations",
+        "scaling-compression-and-open-models"
       ],
       "mapPosition": {
         "x": 84,

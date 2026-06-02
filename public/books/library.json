@@ -3,9 +3,9 @@
     "id": "fundamentals-of-llms",
     "title": "The Fundamentals of LLMs",
     "subtitle": "From everyday intuition to production systems",
-    "description": "A production-minded field guide to large language models, spanning intuition, prompting, retrieval, evaluation, and safety.",
+    "description": "A production-minded field guide to large language models, now extended with transformer internals, runtime, model compression, open-weight customization, and safety.",
     "coverEmoji": "🧠",
-    "durationMinutes": 149,
+    "durationMinutes": 187,
     "tags": [
       "AI literacy",
       "LLMs",
@@ -21,9 +21,9 @@
     "id": "fundamentals-of-llms-zh-hant",
     "title": "LLM 的基本原理",
     "subtitle": "從日常直覺到生產系統",
-    "description": "一本以生產實務為導向的大型語言模型指南，從下一個 token 預測與 transformer 出發，延伸到 prompting、檢索、評估、部署與安全。",
+    "description": "一本以生產實務為導向的大型語言模型指南，現在也涵蓋 transformer 內部、推論 runtime、模型壓縮、開放權重客製化與安全。",
     "coverEmoji": "🧠",
-    "durationMinutes": 149,
+    "durationMinutes": 187,
     "tags": [
       "AI 素養",
       "LLMs",
